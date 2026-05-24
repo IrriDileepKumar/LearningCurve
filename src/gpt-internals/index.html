@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Building GPT From Scratch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..800;1,6..72,300..800&family=Figtree:wght@300..900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { font-size: 21px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+    body {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 1rem;
+      line-height: 1.55;
+      color: #2d2d2d;
+      background-color: #faf9f7;
+    }
+
+    :root {
+      --serif: 'Newsreader', Georgia, serif;
+      --sans: 'Figtree', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+      --bg: #faf9f7;
+      --text: #2d2d2d;
+      --brand: #0F766E;
+      --brand-light: #14B8A6;
+      --accent: #6C3CE0;
+      --border: #E5E5E0;
+      --widget-bg: #F0FDFA;
+      --content-width: 700px;
+      --content-padding: 45px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 20px 32px;
+      font-family: var(--sans);
+    }
+    .logo { font-weight: 800; font-size: 0.75rem; text-decoration: none; color: var(--text); line-height: 1.1; }
+    .logo-secondary { font-style: italic; font-weight: 400; color: #666; }
+
+    .post-header {
+      max-width: 960px;
+      margin: 0 auto 40px;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      min-height: 260px;
+      display: flex;
+      align-items: flex-end;
+    }
+    .header__bg {
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #0F766E 0%, #14B8A6 35%, #6C3CE0 70%, #8B5CF6 100%);
+      z-index: 0;
+    }
+    .header__overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.05) 100%);
+      z-index: 1;
+    }
+    .header__text { position: relative; z-index: 2; padding: 40px 48px; color: white; }
+    .post-title { font-family: var(--sans); font-size: 2.8rem; font-weight: 800; line-height: 1.1; margin-bottom: 8px; }
+    .post-subtitle { font-family: var(--sans); font-size: 1.15rem; font-weight: 400; opacity: 0.9; line-height: 1.3; }
+
+    .nutshell {
+      max-width: var(--content-width);
+      margin: 0 auto 24px;
+      padding: 0 var(--content-padding);
+      font-style: italic;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: #444;
+    }
+
+    hr.full-width { border: none; border-top: 1px solid var(--border); margin: 32px auto; max-width: 960px; }
+
+    article {
+      max-width: var(--content-width);
+      margin: 0 auto;
+      padding: 0 var(--content-padding);
+      border-left: 2px solid var(--border);
+    }
+
+    .toc-wrapper {
+      margin: 32px 0 48px;
+      padding: 24px 28px;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .toc-wrapper h4 { font-family: var(--mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; color: #888; }
+    .toc ol { list-style: none; counter-reset: toc-counter; }
+    .toc ol li { counter-increment: toc-counter; padding: 4px 0; font-family: var(--sans); font-size: 0.8rem; }
+    .toc ol li::before { content: counter(toc-counter, upper-roman) "."; display: inline-block; width: 40px; font-weight: 400; color: #aaa; }
+    .toc a { color: var(--text); text-decoration: none; transition: color 0.2s; }
+    .toc a:hover { color: var(--brand); }
+
+    .section-heading {
+      display: flex; align-items: center; gap: 16px;
+      margin: 72px -60px 32px -60px;
+      padding: 16px 0;
+      border-top: 2px solid var(--border);
+      border-bottom: 2px solid var(--border);
+      background: var(--bg);
+    }
+    .section-number { font-family: var(--sans); font-size: 1.8rem; font-weight: 300; color: #ccc; min-width: 60px; text-align: right; }
+    .section-heading h2 { font-family: var(--serif); font-size: 1.6rem; font-weight: 700; color: var(--text); line-height: 1.2; }
+
+    p { margin-bottom: 1rem; }
+
+    h3 { font-family: var(--serif); font-size: 1.2rem; font-weight: 600; margin: 2rem 0 0.8rem; }
+
+    ol, ul { margin: 0 0 1rem 1.2rem; }
+    li { margin-bottom: 0.3rem; }
+
+    strong { font-weight: 600; }
+
+    a { color: var(--brand); }
+
+    .figure-container {
+      margin: 24px -20px;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .widget-label { font-family: var(--sans); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #999; }
+    .figure-caption { margin-top: 10px; font-family: var(--sans); font-size: 0.7rem; color: #999; text-align: center; }
+
+    .math-block {
+      background: var(--widget-bg);
+      border-left: 4px solid var(--brand);
+      border-radius: 0 10px 10px 0;
+      padding: 16px 20px;
+      margin: 20px 0;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+
+    .code-block {
+      background: #1E293B;
+      color: #E2E8F0;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 16px 0;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+    .code-block .file { color: #94A3B8; font-size: 0.6rem; display: block; margin-bottom: 8px; }
+    .code-block .kw { color: #C084FC; }
+    .code-block .fn { color: #67E8F9; }
+    .code-block .str { color: #86EFAC; }
+    .code-block .num { color: #FDE68A; }
+    .code-block .cm { color: #64748B; }
+
+    .sidenote {
+      background: #f5f5f5;
+      border-left: 3px solid #d4d4d4;
+      border-radius: 0 8px 8px 0;
+      padding: 14px 18px;
+      margin: 20px 0;
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: #555;
+    }
+    .sidenote strong { display: block; margin-bottom: 4px; color: var(--brand); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      margin: 16px 0;
+    }
+    table.data-table th, table.data-table td {
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      text-align: left;
+    }
+    table.data-table th { background: #fff; font-weight: 600; }
+
+    .pipeline-box {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      line-height: 1.9;
+      margin: 20px 0;
+      overflow-x: auto;
+      white-space: pre;
+      text-align: center;
+    }
+
+    .toggle-btn {
+      padding: 6px 14px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      font-family: var(--sans);
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .toggle-btn:hover { border-color: var(--brand); color: var(--brand); }
+    .toggle-btn.active { background: var(--brand); color: white; border-color: var(--brand); }
+
+    .footer {
+      max-width: var(--content-width);
+      margin: 60px auto 0;
+      padding: 24px var(--content-padding) 60px;
+      border-top: 1px solid var(--border);
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      color: #999;
+    }
+    .footer a { color: var(--text); text-decoration: underline; }
+
+    @media (max-width: 700px) {
+      html { font-size: 18px; }
+      .post-title { font-size: 1.8rem; }
+      .header__text { padding: 24px; }
+      article { padding: 0 18px; }
+      .section-heading { margin-left: -18px; margin-right: -18px; padding: 12px 8px; }
+      .figure-container { margin: 16px -10px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="../index.html">Interactive Explainers<br><span class="logo-secondary">Learning by playing</span></a>
+</nav>
+
+<header class="post-header">
+  <div class="header__bg"></div>
+  <div class="header__overlay"></div>
+  <div class="header__text">
+    <h1 class="post-title">Building GPT From Scratch</h1>
+    <h2 class="post-subtitle">Step-by-step implementation with worked math and actual numbers.</h2>
+  </div>
+</header>
+
+<div class="nutshell">
+  This walkthrough follows the code in <strong>My&nbsp;llm/</strong> chapter by chapter.
+  Every concept includes the exact math, real tensor shapes, and interactive widgets
+  so you can revisit any piece when you get stuck. From raw text to next-token prediction &mdash; no hand-waving.
+</div>
+
+<hr class="full-width">
+
+<article>
+
+  <!-- TABLE OF CONTENTS -->
+  <div class="toc-wrapper">
+    <h4>Contents</h4>
+    <div class="toc">
+      <ol>
+        <li><a href="#sec-tokenization">Tokenization &mdash; Turning Text Into Numbers</a></li>
+        <li><a href="#sec-data-prep">Data Preparation &mdash; Sliding Windows for Training</a></li>
+        <li><a href="#sec-embeddings">Embeddings &mdash; Token + Positional</a></li>
+        <li><a href="#sec-simple-attn">Simple Self-Attention &mdash; The "Journey" Example</a></li>
+        <li><a href="#sec-trainable-attn">Trainable Attention &mdash; W<sub>q</sub>, W<sub>k</sub>, W<sub>v</sub></a></li>
+        <li><a href="#sec-causal-attn">Causal Attention &mdash; No Peeking Forward</a></li>
+        <li><a href="#sec-multi-head">Multi-Head Attention &mdash; Parallel Views</a></li>
+        <li><a href="#sec-ffn-ln">Feed-Forward + LayerNorm &mdash; Private Thinking</a></li>
+        <li><a href="#sec-beensgpt">BeensGPT &mdash; The Full Model</a></li>
+        <li><a href="#sec-output">Output Projection &mdash; Predicting the Next Token</a></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION I: TOKENIZATION                      -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-tokenization">
+    <span class="section-number">I.</span>
+    <h2>Turning Text Into Numbers</h2>
+  </div>
+
+  <p>Models don't read text. They need numbers. A <strong>tokenizer</strong> is the bridge: it splits text into small chunks (tokens), then maps each chunk to an integer ID from a fixed vocabulary.</p>
+
+  <p>In <code>simpleTokenizer.py</code>, we built a tiny hand-crafted vocabulary:</p>
+
+  <div class="code-block">
+    <span class="file">My llm/chapter2/encoders/simpleTokenizer.py</span>
+<span class="cm"># vocabulary mapping</span>
+vocabulary = {<span class="str">'&lt;pad&gt;'</span>:<span class="num">0</span>, <span class="str">'&lt;unk&gt;'</span>:<span class="num">1</span>, <span class="str">'&lt;s&gt;'</span>:<span class="num">2</span>, <span class="str">'&lt;/s&gt;'</span>:<span class="num">3</span>,
+              <span class="str">'hello'</span>:<span class="num">4</span>, <span class="str">','</span>:<span class="num">5</span>, <span class="str">'how'</span>:<span class="num">6</span>, <span class="str">'are'</span>:<span class="num">7</span>,
+              <span class="str">'you'</span>:<span class="num">8</span>, <span class="str">'?'</span>:<span class="num">9</span>, <span class="str">'i'</span>:<span class="num">10</span>, <span class="str">'am'</span>:<span class="num">11</span>,
+              <span class="str">'fine'</span>:<span class="num">12</span>, <span class="str">'thank'</span>:<span class="num">13</span>, <span class="str">'.'</span>:<span class="num">15</span>,
+              <span class="str">'goodbye'</span>:<span class="num">16</span>, <span class="str">'!'</span>:<span class="num">17</span>}
+  </div>
+
+  <p><strong>encode</strong> turns text into IDs. <strong>decode</strong> turns IDs back to text. Words not in the vocabulary become <code>&lt;unk&gt;</code> (ID 1).</p>
+
+  <h3>Worked example</h3>
+
+  <div class="math-block">Input:  "yo, how are you?"
+Tokens: ["yo", ",", "how", "are", "you", "?"]
+IDs:    [  1,   5,    6,    7,    8,   9 ]
+         ^unk (not in vocab)</div>
+
+  <p>In <code>bytepair.py</code>, we switched to the real <strong>GPT-2 BPE tokenizer</strong> via <code>tiktoken</code>. BPE splits words into subwords, so rare words are broken into pieces while common words stay whole. GPT-2 has <strong>50,257 tokens</strong> total.</p>
+
+  <!-- INTERACTIVE: Tokenizer -->
+  <div class="figure-container" id="tokenizer-demo">
+    <div class="widget-label">Tokenizer &mdash; type text, see token IDs</div>
+    <input type="text" id="tok-input" value="yo, how are you?"
+      style="width:100%; padding:10px 14px; font-family:var(--sans); font-size:0.8rem;
+             border:2px solid var(--border); border-radius:8px; outline:none; background:white;
+             margin-top:12px; transition:border-color 0.2s;"
+      onfocus="this.style.borderColor='var(--brand)'" onblur="this.style.borderColor='var(--border)'"
+    >
+    <div id="tok-output" style="margin-top:14px; display:flex; flex-wrap:wrap; gap:4px; min-height:36px;"></div>
+    <div id="tok-ids" style="margin-top:6px; font-family:var(--mono); font-size:0.6rem; color:#999;"></div>
+    <div class="figure-caption">Uses the small vocabulary from simpleTokenizer.py. Unknown words map to &lt;unk&gt; (1).</div>
+  </div>
+
+  <table class="data-table">
+    <tr><th>Special token</th><th>Role</th></tr>
+    <tr><td><code>&lt;pad&gt;</code></td><td>Padding so batches are the same length</td></tr>
+    <tr><td><code>&lt;unk&gt;</code></td><td>Word not in the vocabulary</td></tr>
+    <tr><td><code>&lt;s&gt;</code></td><td>Start of sequence</td></tr>
+    <tr><td><code>&lt;/s&gt;</code></td><td>End of sequence</td></tr>
+  </table>
+
+  <!-- ============================================ -->
+  <!-- SECTION II: DATA PREPARATION                 -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-data-prep">
+    <span class="section-number">II.</span>
+    <h2>Sliding Windows for Training</h2>
+  </div>
+
+  <p>A model cannot train on a big text file directly. It needs small batches of numbers with <strong>input/target pairs</strong>. The target is always the input shifted by one &mdash; <em>predict the next token</em>.</p>
+
+  <div class="code-block">
+    <span class="file">My llm/chapter2/encoders/data_preparation.py</span>
+token_ids = tokenizer.encode(text)
+<span class="kw">for</span> i <span class="kw">in</span> range(<span class="num">0</span>, len(token_ids) - max_length, stride):
+    input_ids.append(token_ids[i : i + max_length])
+    output_ids.append(token_ids[i+<span class="num">1</span> : i + max_length + <span class="num">1</span>])
+  </div>
+
+  <h3>Worked example</h3>
+
+  <div class="math-block">token_ids = [A, B, C, D, E, F, G, H]
+max_length = 4,  stride = 4  (non-overlapping)
+
+ i=0  input: [A, B, C, D]   target: [B, C, D, E]
+ i=4  input: [E, F, G, H]   target: [F, G, H, ?]
+
+The model learns:
+  Given A -> predict B
+  Given A,B -> predict C
+  ...</div>
+
+  <!-- INTERACTIVE: Sliding Window -->
+  <div class="figure-container" id="window-demo">
+    <div class="widget-label">Sliding Window &mdash; adjust max_length and stride</div>
+    <div style="display:flex; gap:24px; margin:14px 0; font-family:var(--sans); font-size:0.78rem; flex-wrap:wrap;">
+      <label>max_length: <input type="range" id="win-len" min="2" max="6" value="4" style="vertical-align:middle;"> <span id="win-len-val">4</span></label>
+      <label>stride: <input type="range" id="win-stride" min="1" max="6" value="4" style="vertical-align:middle;"> <span id="win-stride-val">4</span></label>
+    </div>
+    <svg viewBox="0 0 660 220" width="100%" id="window-svg"></svg>
+    <div class="figure-caption">Blue = input window, green = target window (shifted by 1). Overlap shown when stride &lt; max_length.</div>
+  </div>
+
+  <p>Finally, PyTorch's <code>DataLoader</code> groups many windows into <strong>batches</strong>. With <code>batch_size=8</code> and <code>max_length=4</code>, each batch is a tensor of shape <strong>[8, 4]</strong> &mdash; 8 sequences of 4 tokens each.</p>
+
+  <!-- ============================================ -->
+  <!-- SECTION III: EMBEDDINGS                      -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-embeddings">
+    <span class="section-number">III.</span>
+    <h2>Token + Positional Embeddings</h2>
+  </div>
+
+  <p>Token IDs are just arbitrary numbers. <code>nn.Embedding</code> turns each ID into a <strong>dense vector</strong> by looking up a row in a big weight matrix.</p>
+
+  <div class="code-block">
+    <span class="file">My llm/chapter2/encoders/TokenEmbedding.py</span>
+vocab_size = <span class="num">50257</span>     <span class="cm"># GPT-2 tokenizer size</span>
+output_dim = <span class="num">256</span>       <span class="cm"># embedding vector length</span>
+
+token_embedding_layer = nn.Embedding(vocab_size, output_dim)
+<span class="cm"># Internal weight matrix shape: [50257, 256]</span>
+  </div>
+
+  <h3>How the lookup works</h3>
+
+  <div class="math-block">Embedding table E  (50257 rows x 256 cols)
+
+Token ID 40   ->  E[40]   = [0.12, -0.05, 0.33, ..., 0.08]   (256 numbers)
+Token ID 367  ->  E[367]  = [0.55,  0.87, 0.66, ..., -0.21]  (256 numbers)</div>
+
+  <h3>Positional embedding</h3>
+
+  <p>Attention is order-agnostic &mdash; "cat ate fish" and "fish ate cat" would produce the same scores without position info. A second embedding table <code>P</code> encodes <em>where</em> each token sits:</p>
+
+  <div class="math-block">Position table P  (context_length x 256)
+
+final_vector = E[token_id] + P[position]
+
+Position 0:  E[40]   + P[0]
+Position 1:  E[367]  + P[1]
+Position 2:  E[2885] + P[2]
+Position 3:  E[1464] + P[3]</div>
+
+  <!-- INTERACTIVE: Embedding Matrix -->
+  <div class="figure-container" id="embed-demo">
+    <div class="widget-label">Embedding Matrix &mdash; click a token ID to highlight its row</div>
+    <svg viewBox="0 0 660 260" width="100%" id="embed-svg"></svg>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+      <button class="toggle-btn" onclick="highlightRow(0)">ID 0</button>
+      <button class="toggle-btn" onclick="highlightRow(40)">ID 40</button>
+      <button class="toggle-btn" onclick="highlightRow(367)">ID 367</button>
+      <button class="toggle-btn" onclick="highlightRow(2885)">ID 2885</button>
+      <button class="toggle-btn" onclick="highlightRow(50256)">ID 50256</button>
+    </div>
+    <div id="embed-info" style="margin-top:8px; font-family:var(--sans); font-size:0.75rem; color:#666; min-height:20px;"></div>
+    <div class="figure-caption">Each row is one token's vector. The model learns these values during training.</div>
+  </div>
+
+  <table class="data-table">
+    <tr><th>Config</th><th>Value</th><th>Meaning</th></tr>
+    <tr><td>vocab_size</td><td>50257</td><td>Fixed by GPT-2 tokenizer (rows)</td></tr>
+    <tr><td>output_dim</td><td>256 / 768</td><td>You choose &mdash; model hyperparameter (columns)</td></tr>
+    <tr><td>context_length</td><td>4 / 1024</td><td>Max sequence length for positional table</td></tr>
+  </table>
+
+  <!-- ============================================ -->
+  <!-- SECTION IV: SIMPLE SELF-ATTENTION            -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-simple-attn">
+    <span class="section-number">IV.</span>
+    <h2>The "Journey" Example</h2>
+  </div>
+
+  <p>Attention lets each word look at every other word and decide <em>how much to listen</em>. In this simplified version, Q = K = V = the input embeddings themselves (no learned projections yet).</p>
+
+  <div class="code-block">
+    <span class="file">My llm/Chapter 3 - Self Attention/simpleAttention.py</span>
+input_embedding = torch.tensor([
+    [<span class="num">0.43</span>, <span class="num">0.15</span>, <span class="num">0.89</span>],   <span class="cm"># Your     (x1)</span>
+    [<span class="num">0.55</span>, <span class="num">0.87</span>, <span class="num">0.66</span>],   <span class="cm"># journey  (x2) &lt;- query</span>
+    [<span class="num">0.57</span>, <span class="num">0.85</span>, <span class="num">0.64</span>],   <span class="cm"># starts   (x3)</span>
+    [<span class="num">0.22</span>, <span class="num">0.58</span>, <span class="num">0.33</span>],   <span class="cm"># with     (x4)</span>
+    [<span class="num">0.77</span>, <span class="num">0.25</span>, <span class="num">0.10</span>],   <span class="cm"># one      (x5)</span>
+    [<span class="num">0.05</span>, <span class="num">0.80</span>, <span class="num">0.55</span>]    <span class="cm"># step     (x6)</span>
+])
+  </div>
+
+  <h3>Step 1 &mdash; Attention scores (dot products)</h3>
+  <p>For query = <strong>"journey"</strong> = [0.55, 0.87, 0.66], compute the dot product with every word:</p>
+
+  <div class="math-block">score(journey, Your)   = 0.55*0.43 + 0.87*0.15 + 0.66*0.89 = 0.9544
+score(journey, journey)= 0.55*0.55 + 0.87*0.87 + 0.66*0.66 = 1.4950
+score(journey, starts) = 0.55*0.57 + 0.87*0.85 + 0.66*0.64 = 1.4754
+score(journey, with)   = 0.55*0.22 + 0.87*0.58 + 0.66*0.33 = 0.8434
+score(journey, one)    = 0.55*0.77 + 0.87*0.25 + 0.66*0.10 = 0.7070
+score(journey, step)   = 0.55*0.05 + 0.87*0.80 + 0.66*0.55 = 1.0865</div>
+
+  <h3>Step 2 &mdash; Normalize to weights (sum to 1)</h3>
+
+  <div class="math-block">sum = 0.9544 + 1.4950 + 1.4754 + 0.8434 + 0.7070 + 1.0865 = 6.5617
+
+weights = [0.9544/6.56, 1.4950/6.56, ...]
+        = [0.1455, 0.2278, 0.2249, 0.1285, 0.1077, 0.1656]</div>
+
+  <h3>Step 3 &mdash; Context vector (weighted sum)</h3>
+
+  <div class="math-block">context = 0.1455 * [0.43, 0.15, 0.89]     (Your)
+        + 0.2278 * [0.55, 0.87, 0.66]     (journey)
+        + 0.2249 * [0.57, 0.85, 0.64]     (starts)
+        + 0.1285 * [0.22, 0.58, 0.33]     (with)
+        + 0.1077 * [0.77, 0.25, 0.10]     (one)
+        + 0.1656 * [0.05, 0.80, 0.55]     (step)
+
+First number by hand:
+  0.1455*0.43 + 0.2278*0.55 + 0.2249*0.57 + 0.1285*0.22 + 0.1077*0.77 + 0.1656*0.05
+= 0.0626 + 0.1253 + 0.1282 + 0.0283 + 0.0829 + 0.0083
+= 0.4355
+
+context vector = [0.4355, 0.6451, 0.5680]</div>
+
+  <!-- INTERACTIVE: Attention Calculator -->
+  <div class="figure-container" id="attn-demo">
+    <div class="widget-label">Attention Calculator &mdash; click a word to use as query</div>
+    <div id="attn-words" style="display:flex; gap:8px; flex-wrap:wrap; margin:14px 0;"></div>
+    <svg viewBox="0 0 660 240" width="100%" id="attn-svg"></svg>
+    <div id="attn-result" style="font-family:var(--mono); font-size:0.72rem; margin-top:8px; color:#444;"></div>
+    <div class="figure-caption">Scores, weights, and the final context vector update when you pick a different query word.</div>
+  </div>
+
+  <p>For <strong>all words at once</strong>, the same idea becomes a matrix multiply:</p>
+
+  <div class="code-block">
+full_attention_scores  = X @ X<sup>T</sup>           <span class="cm"># QK^T  (Q=K=X)</span>
+full_attention_weights = softmax(scores)      <span class="cm"># normalize</span>
+full_context_vector    = weights @ X          <span class="cm"># weighted sum (V=X)</span>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION V: TRAINABLE ATTENTION               -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-trainable-attn">
+    <span class="section-number">V.</span>
+    <h2>W<sub>q</sub>, W<sub>k</sub>, W<sub>v</sub></h2>
+  </div>
+
+  <p>In simplified attention, Q = K = V (same matrix). Real transformers give each a <strong>separate learned projection</strong> so the model can learn <em>different</em> views for querying, being queried, and carrying information.</p>
+
+  <div class="code-block">
+    <span class="file">My llm/Chapter 3 - Self Attention/trainableAttention.py</span>
+w_q = nn.Parameter(torch.rand(d_in, d_out))
+w_k = nn.Parameter(torch.rand(d_in, d_out))
+w_v = nn.Parameter(torch.rand(d_in, d_out))
+
+Q = X @ W_q      <span class="cm"># what am I looking for?</span>
+K = X @ W_k      <span class="cm"># what do I contain?</span>
+V = X @ W_v      <span class="cm"># what information do I carry?</span>
+  </div>
+
+  <h3>The full formula</h3>
+
+  <div class="math-block">                                 Q K^T
+Attention(Q, K, V) = softmax( --------- ) * V
+                               sqrt(d_k)
+
+Step 1:  Q = X @ W_q            shape (N, d_k)
+Step 2:  K = X @ W_k            shape (N, d_k)
+Step 3:  V = X @ W_v            shape (N, d_v)
+Step 4:  Scores = Q @ K^T       shape (N, N)
+Step 5:  Scaled = Scores / sqrt(d_k)
+Step 6:  Weights = softmax(Scaled)
+Step 7:  Context = Weights @ V  shape (N, d_v)</div>
+
+  <!-- Visual: Q K V flow -->
+  <div class="figure-container">
+    <div class="widget-label">Q, K, V Projection Flow</div>
+    <svg viewBox="0 0 660 200" width="100%" id="qkv-svg">
+      <rect x="30" y="70" width="100" height="60" rx="8" fill="#E0F2FE" stroke="#3B82F6" stroke-width="2"/>
+      <text x="80" y="105" text-anchor="middle" font-family="var(--sans)" font-size="14" fill="#3B82F6" font-weight="700">X</text>
+      <text x="80" y="148" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="#999">Input (N, d_in)</text>
+
+      <line x1="130" y1="85" x2="220" y2="45" stroke="#C084FC" stroke-width="2" marker-end="url(#arr)"/>
+      <line x1="130" y1="100" x2="220" y2="100" stroke="#67E8F9" stroke-width="2" marker-end="url(#arr)"/>
+      <line x1="130" y1="115" x2="220" y2="155" stroke="#86EFAC" stroke-width="2" marker-end="url(#arr)"/>
+
+      <text x="185" y="55" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="#C084FC">@ W_q</text>
+      <text x="185" y="93" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="#67E8F9">@ W_k</text>
+      <text x="185" y="148" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="#86EFAC">@ W_v</text>
+
+      <rect x="220" y="20" width="80" height="50" rx="8" fill="#F3E8FF" stroke="#C084FC" stroke-width="2"/>
+      <text x="260" y="50" text-anchor="middle" font-family="var(--sans)" font-size="14" fill="#9333EA" font-weight="700">Q</text>
+
+      <rect x="220" y="75" width="80" height="50" rx="8" fill="#ECFEFF" stroke="#67E8F9" stroke-width="2"/>
+      <text x="260" y="105" text-anchor="middle" font-family="var(--sans)" font-size="14" fill="#0891B2" font-weight="700">K</text>
+
+      <rect x="220" y="130" width="80" height="50" rx="8" fill="#F0FDF4" stroke="#86EFAC" stroke-width="2"/>
+      <text x="260" y="160" text-anchor="middle" font-family="var(--sans)" font-size="14" fill="#16A34A" font-weight="700">V</text>
+
+      <line x1="300" y1="45" x2="380" y2="80" stroke="#C084FC" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="300" y1="100" x2="380" y2="90" stroke="#67E8F9" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="380" y="65" width="110" height="50" rx="8" fill="#FFF7ED" stroke="#F59E0B" stroke-width="2"/>
+      <text x="435" y="88" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="#B45309" font-weight="600">Q @ K<tspan baseline-shift="super" font-size="8">T</tspan></text>
+      <text x="435" y="103" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="#999">/ sqrt(d_k)</text>
+
+      <line x1="490" y1="90" x2="530" y2="90" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="530" y="65" width="100" height="50" rx="8" fill="#FEF3C7" stroke="#F59E0B" stroke-width="2"/>
+      <text x="580" y="95" text-anchor="middle" font-family="var(--sans)" font-size="12" fill="#B45309" font-weight="600">softmax</text>
+
+      <line x1="580" y1="115" x2="580" y2="155" stroke="#16A34A" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="300" y1="155" x2="540" y2="170" stroke="#86EFAC" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="540" y="155" width="90" height="40" rx="8" fill="#F0FDF4" stroke="#16A34A" stroke-width="2"/>
+      <text x="585" y="180" text-anchor="middle" font-family="var(--sans)" font-size="12" fill="#16A34A" font-weight="700">Context</text>
+
+      <defs><marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#aaa"/></marker></defs>
+    </svg>
+    <div class="figure-caption">Three separate weight matrices produce Q, K, V from the same input X.</div>
+  </div>
+
+  <div class="sidenote">
+    <strong>Why sqrt(d_k)?</strong> Without scaling, dot products grow large in high dimensions, making softmax produce extreme values (nearly all 0s and one 1). Dividing by sqrt(d_k) keeps gradients well-behaved during training.
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION VI: CAUSAL ATTENTION                 -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-causal-attn">
+    <span class="section-number">VI.</span>
+    <h2>No Peeking Forward</h2>
+  </div>
+
+  <p>In GPT, when predicting the next token at position 3, the model must <strong>not</strong> see tokens at positions 4, 5, 6... That would be cheating. Causal attention masks the upper triangle of the score matrix with <code>-inf</code> so future tokens get zero weight after softmax.</p>
+
+  <div class="code-block">
+    <span class="file">My llm/Chapter 3 - Self Attention/casualAttention.py</span>
+casual_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=<span class="num">1</span>).bool()
+scaled_attention_scores.masked_fill_(casual_mask, <span class="kw">float</span>(<span class="str">'-inf'</span>))
+attention_weights = torch.softmax(scaled_attention_scores, dim=-<span class="num">1</span>)
+  </div>
+
+  <h3>Worked example (6 words)</h3>
+
+  <!-- INTERACTIVE: Causal Mask -->
+  <div class="figure-container" id="causal-demo">
+    <div class="widget-label">Causal Mask &mdash; toggle to see the effect</div>
+    <div style="display:flex; gap:8px; margin:14px 0;">
+      <button class="toggle-btn active" id="mask-on-btn" onclick="setCausalMask(true)">Mask ON (GPT)</button>
+      <button class="toggle-btn" id="mask-off-btn" onclick="setCausalMask(false)">Mask OFF (full)</button>
+    </div>
+    <svg viewBox="0 0 660 340" width="100%" id="causal-svg"></svg>
+    <div class="figure-caption">With the mask ON, each word can only attend to itself and earlier words. -inf becomes 0.00 after softmax.</div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION VII: MULTI-HEAD ATTENTION            -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-multi-head">
+    <span class="section-number">VII.</span>
+    <h2>Parallel Views</h2>
+  </div>
+
+  <p>One attention pass captures one kind of relationship. <strong>Multi-head attention</strong> runs several attention passes in parallel, each on a <em>slice</em> of the embedding, then concatenates the results.</p>
+
+  <div class="code-block">
+    <span class="file">My llm/Chapter 4 - LLM Architecture/multiHeadAttention.py</span>
+self.num_heads = num_heads                          <span class="cm"># 12</span>
+self.head_dim  = dimension_in // num_heads          <span class="cm"># 768/12 = 64</span>
+
+query = self.w_query(inputs).view(B, N, num_heads, head_dim)
+key   = self.w_key(inputs).view(B, N, num_heads, head_dim)
+value = self.w_value(inputs).view(B, N, num_heads, head_dim)
+  </div>
+
+  <h3>The split</h3>
+
+  <!-- INTERACTIVE: Head split -->
+  <div class="figure-container" id="head-demo">
+    <div class="widget-label">Multi-Head Split &mdash; 768 dims into 12 heads of 64</div>
+    <svg viewBox="0 0 660 160" width="100%" id="head-svg"></svg>
+    <div class="figure-caption">Each colored chunk is one attention head. Every head runs its own Q, K, V attention independently.</div>
+  </div>
+
+  <div class="math-block">embedding_dim = 768
+n_heads       = 12
+head_dim      = 768 / 12 = 64
+
+Each head:
+  Q_h, K_h, V_h  are [N, 64] slices
+  scores_h = Q_h @ K_h^T / sqrt(64)   [N, N]
+  context_h = softmax(scores_h) @ V_h  [N, 64]
+
+After all 12 heads: concat -> [N, 768] -> output linear</div>
+
+  <div class="sidenote">
+    <strong>Analogy:</strong> 12 experts read the sentence at the same time. One might focus on grammar, another on nearby words, another on meaning links. Then their 12 reports are merged.
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION VIII: FFN + LAYERNORM                -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-ffn-ln">
+    <span class="section-number">VIII.</span>
+    <h2>Private Thinking</h2>
+  </div>
+
+  <p>After attention (where tokens <em>share</em> info), each token goes through a <strong>feed-forward network</strong> privately &mdash; no interaction with other tokens.</p>
+
+  <div class="code-block">
+    <span class="file">chapters/Chapter 4 - LLM Architecture/feedForward.py</span>
+<span class="kw">class</span> <span class="fn">FeedForward</span>(nn.Module):
+    <span class="kw">def</span> __init__(self, config):
+        self.layers = nn.Sequential(
+            nn.Linear(config[<span class="str">"embedding_dim"</span>], <span class="num">4</span> * config[<span class="str">"embedding_dim"</span>]),
+            nn.GELU(),
+            nn.Linear(<span class="num">4</span> * config[<span class="str">"embedding_dim"</span>], config[<span class="str">"embedding_dim"</span>])
+        )
+  </div>
+
+  <div class="math-block">FFN shape flow:
+
+  768  -->  3072  -->  GELU  -->  768
+  (expand 4x)          (activate)    (compress back)</div>
+
+  <h3>LayerNorm</h3>
+
+  <p><strong>Layer Normalization</strong> keeps activations stable by normalizing each token vector to have zero mean and unit variance, then applying a learned scale and shift.</p>
+
+  <div class="math-block">LayerNorm(x) = scale * (x - mean) / sqrt(variance + eps) + shift
+
+For a token vector x = [a, b, c, ..., 768 values]:
+  mean = average of all 768 values
+  variance = spread of all 768 values
+  eps = 1e-5  (avoids division by zero)</div>
+
+  <h3>Skip connections (residuals)</h3>
+
+  <p>Each sub-block adds its <em>original input back</em> to the output. This means the model only needs to learn <strong>small refinements</strong> rather than reconstructing everything from scratch.</p>
+
+  <div class="pipeline-box">x --> LayerNorm --> Attention --> Dropout --> + x  (residual)
+  --> LayerNorm --> FFN      --> Dropout --> + x  (residual)</div>
+
+  <!-- ============================================ -->
+  <!-- SECTION IX: BEENSGPT                         -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-beensgpt">
+    <span class="section-number">IX.</span>
+    <h2>The Full Model</h2>
+  </div>
+
+  <p><strong>BeensGPT</strong> ties everything together: embeddings, 12 transformer layers, and an output head that predicts the next token.</p>
+
+  <div class="code-block">
+    <span class="file">My llm/Chapter 4 - LLM Architecture/beensGPT.py</span>
+beensGPT_config = {
+    <span class="str">"vocab_size"</span>:      <span class="num">50257</span>,
+    <span class="str">"context_length"</span>:  <span class="num">1024</span>,
+    <span class="str">"embedding_dim"</span>:   <span class="num">768</span>,
+    <span class="str">"n_heads"</span>:         <span class="num">12</span>,
+    <span class="str">"n_layers"</span>:        <span class="num">12</span>,
+    <span class="str">"dropout_value"</span>:   <span class="num">0.1</span>,
+    <span class="str">"qkv_bias"</span>:        <span class="kw">False</span>
+}
+  </div>
+
+  <h3>Forward pass &mdash; shape by shape</h3>
+
+  <!-- INTERACTIVE: Shape stepper -->
+  <div class="figure-container" id="shape-demo">
+    <div class="widget-label">Forward Pass &mdash; click steps to trace shapes through the model</div>
+    <div id="shape-steps" style="display:flex; gap:6px; flex-wrap:wrap; margin:14px 0;"></div>
+    <svg viewBox="0 0 660 300" width="100%" id="shape-svg"></svg>
+    <div id="shape-info" style="font-family:var(--sans); font-size:0.78rem; color:#444; margin-top:10px; min-height:40px;"></div>
+    <div class="figure-caption">Input: 2 sentences of 5 tokens. Shapes show [batch, sequence, features] at each stage.</div>
+  </div>
+
+  <div class="pipeline-box">[2, 5]  token IDs
+   |  token embed + pos embed
+[2, 5, 768]
+   |  dropout
+[2, 5, 768]
+   |  x 12 transformer layers
+   |    (each: LN -> Attn -> +skip -> LN -> FFN -> +skip)
+[2, 5, 768]
+   |  final LayerNorm
+[2, 5, 768]
+   |  Linear(768 -> 50257)
+[2, 5, 50257]  logits
+   |  argmax at last position
+predicted token ID -> decode -> word</div>
+
+  <table class="data-table">
+    <tr><th>Component</th><th>Role</th></tr>
+    <tr><td><code>token_embeddings</code></td><td>Token ID -> 768-dim vector</td></tr>
+    <tr><td><code>positional_embeddings</code></td><td>Add position info (which slot in the sequence)</td></tr>
+    <tr><td><code>dropout</code></td><td>Regularization during training</td></tr>
+    <tr><td><code>transformer_blocks (x12)</code></td><td>12 layers of attention + FFN</td></tr>
+    <tr><td><code>normalized_layer</code></td><td>Final LayerNorm</td></tr>
+    <tr><td><code>output</code></td><td>Linear(768 -> 50257) for next-token scores</td></tr>
+  </table>
+
+  <!-- ============================================ -->
+  <!-- SECTION X: OUTPUT PROJECTION                 -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-output">
+    <span class="section-number">X.</span>
+    <h2>Predicting the Next Token</h2>
+  </div>
+
+  <p>The final layer is a simple <code>nn.Linear(768, 50257)</code>. It multiplies each token's 768-dim hidden vector by a weight matrix to produce <strong>one score per vocabulary token</strong>. The highest score wins.</p>
+
+  <h3>Worked example (tiny: 4 dims, 5 tokens)</h3>
+
+  <div class="math-block">Hidden vector h = [0.5, -0.2, 0.8, 0.1]    (4 numbers)
+
+Weight matrix W (5 x 4):
+  row 0: [ 0.1,  0.2, -0.1,  0.3]  -> token "the"
+  row 1: [ 0.4, -0.3,  0.2,  0.1]  -> token "cat"
+  row 2: [-0.2,  0.5,  0.3, -0.4]  -> token "sat"
+  row 3: [ 0.3,  0.1,  0.0,  0.2]  -> token "on"
+  row 4: [ 0.2,  0.4, -0.3,  0.5]  -> token "it"
+
+Score for "the" = h . row0 = 0.5*0.1 + (-0.2)*0.2 + 0.8*(-0.1) + 0.1*0.3
+               = 0.05 - 0.04 - 0.08 + 0.03 = -0.04
+
+All scores:
+  "the" = -0.04
+  "cat" =  0.42
+  "sat" =  0.10
+  "on"  =  0.19
+  "it"  =  0.11
+
+argmax -> "cat" (score 0.42)  <- predicted next token</div>
+
+  <!-- INTERACTIVE: Output bar chart -->
+  <div class="figure-container" id="output-demo">
+    <div class="widget-label">Output Scores &mdash; bar chart of next-token prediction</div>
+    <svg viewBox="0 0 660 220" width="100%" id="output-svg"></svg>
+    <div class="figure-caption">Each bar is a dot-product score. The tallest bar (green) is the model's prediction for the next token.</div>
+  </div>
+
+  <p>In the real BeensGPT, the hidden vector has <strong>768</strong> numbers and there are <strong>50,257</strong> possible tokens. Same math &mdash; just a much bigger matrix multiply.</p>
+
+  <div class="sidenote">
+    <strong>Interesting symmetry:</strong> The embedding layer maps token ID -> 768-dim vector (lookup row k). The output layer maps 768-dim vector -> score per token (dot product with row k). They are reverse directions of the same idea.
+  </div>
+
+  <p style="text-align:center; font-family:var(--sans); font-size:1.1rem; font-weight:700; color:var(--brand); padding:24px 0;">
+    Token numbers in &rarr; model thinks &rarr; scores for all token numbers &rarr; pick best one.
+  </p>
+
+</article>
+
+<div class="footer">
+  <p>A learning project by <a href="https://github.com/IrriDileepKumar">IrriDileepKumar</a>. Built while studying <em>Build a Large Language Model from Scratch</em>.</p>
+</div>
+
+<script>
+// ========== VOCABULARY for Section I ==========
+const VOCAB = {'<pad>':0,'<unk>':1,'<s>':2,'</s>':3,'hello':4,',':5,'how':6,'are':7,'you':8,'?':9,'i':10,'am':11,'fine':12,'thank':13,'you':8,'.':15,'goodbye':16,'!':17};
+const COLORS = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#06B6D4'];
+
+function tokenize(text) {
+  const parts = text.toLowerCase().match(/\w+|[^\w\s]/g) || [];
+  return parts.map(t => ({ token: t, id: VOCAB[t] !== undefined ? VOCAB[t] : 1 }));
+}
+
+function renderTokenizer() {
+  const input = document.getElementById('tok-input');
+  const out = document.getElementById('tok-output');
+  const ids = document.getElementById('tok-ids');
+  function update() {
+    const tokens = tokenize(input.value);
+    out.innerHTML = tokens.map((t, i) =>
+      `<span style="padding:4px 10px;border-radius:6px;font-family:var(--mono);font-size:0.72rem;color:#fff;background:${COLORS[i % COLORS.length]}">${t.token}</span>`
+    ).join('');
+    ids.textContent = 'IDs: [' + tokens.map(t => t.id).join(', ') + ']';
+  }
+  input.addEventListener('input', update);
+  update();
+}
+
+// ========== SLIDING WINDOW for Section II ==========
+function renderWindow() {
+  const svg = document.getElementById('window-svg');
+  const lenSlider = document.getElementById('win-len');
+  const strideSlider = document.getElementById('win-stride');
+  const lenVal = document.getElementById('win-len-val');
+  const strideVal = document.getElementById('win-stride-val');
+  const letters = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+
+  function draw() {
+    const ml = parseInt(lenSlider.value);
+    const st = parseInt(strideSlider.value);
+    lenVal.textContent = ml;
+    strideVal.textContent = st;
+    const N = 8;
+    const cellW = 60, cellH = 32, gap = 4, startX = 50, startY = 20;
+    let html = '';
+    for (let i = 0; i < N; i++) {
+      const x = startX + i * (cellW + gap);
+      html += `<rect x="${x}" y="${startY}" width="${cellW}" height="${cellH}" rx="6" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5"/>`;
+      html += `<text x="${x + cellW/2}" y="${startY + cellH/2 + 5}" text-anchor="middle" font-family="var(--mono)" font-size="14" fill="#334155">${letters[i]}</text>`;
+    }
+    let row = 0;
+    for (let i = 0; i <= N - ml; i += st) {
+      const y = 70 + row * 52;
+      const inputX = startX + i * (cellW + gap);
+      const targetX = startX + (i + 1) * (cellW + gap);
+      html += `<rect x="${inputX - 3}" y="${y}" width="${ml * (cellW + gap) - gap + 6}" height="${cellH + 6}" rx="8" fill="none" stroke="#3B82F6" stroke-width="2.5" stroke-dasharray="6,3"/>`;
+      html += `<text x="${inputX - 18}" y="${y + cellH/2 + 5}" text-anchor="end" font-family="var(--sans)" font-size="10" fill="#3B82F6" font-weight="600">in</text>`;
+      if (i + 1 + ml <= N + 1) {
+        html += `<rect x="${targetX - 3}" y="${y}" width="${ml * (cellW + gap) - gap + 6}" height="${cellH + 6}" rx="8" fill="none" stroke="#10B981" stroke-width="2" stroke-dasharray="6,3"/>`;
+        html += `<text x="${targetX + ml * (cellW + gap) - gap + 12}" y="${y + cellH/2 + 5}" font-family="var(--sans)" font-size="10" fill="#10B981" font-weight="600">target</text>`;
+      }
+      for (let j = 0; j < ml && (i + j) < N; j++) {
+        const x = startX + (i + j) * (cellW + gap);
+        html += `<rect x="${x}" y="${y + 3}" width="${cellW}" height="${cellH}" rx="6" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>`;
+        html += `<text x="${x + cellW/2}" y="${y + 3 + cellH/2 + 5}" text-anchor="middle" font-family="var(--mono)" font-size="13" fill="#1E40AF">${letters[i + j]}</text>`;
+      }
+      row++;
+    }
+    const totalH = 70 + row * 52 + 10;
+    svg.setAttribute('viewBox', `0 0 660 ${totalH}`);
+    svg.innerHTML = html;
+  }
+  lenSlider.addEventListener('input', draw);
+  strideSlider.addEventListener('input', draw);
+  draw();
+}
+
+// ========== EMBEDDING MATRIX for Section III ==========
+function renderEmbedding() {
+  const svg = document.getElementById('embed-svg');
+  const rows = 16, cols = 20;
+  const cw = 28, ch = 12, sx = 80, sy = 30;
+  let html = '';
+  html += `<text x="40" y="18" font-family="var(--sans)" font-size="11" fill="#999" text-anchor="middle">rows</text>`;
+  html += `<text x="${sx + cols*cw/2}" y="18" font-family="var(--sans)" font-size="11" fill="#999" text-anchor="middle">256 columns (one per dimension)</text>`;
+  for (let r = 0; r < rows; r++) {
+    const y = sy + r * ch;
+    const label = r < 3 ? r : r === 3 ? '...' : r === rows - 2 ? '50256' : r === rows - 1 ? '' : '';
+    if (label !== '') html += `<text x="${sx - 8}" y="${y + ch/2 + 3}" text-anchor="end" font-family="var(--mono)" font-size="9" fill="#aaa">${label}</text>`;
+    for (let c = 0; c < cols; c++) {
+      const x = sx + c * cw;
+      const brightness = 180 + Math.floor(Math.random() * 60);
+      html += `<rect class="embed-cell" data-row="${r}" x="${x}" y="${y}" width="${cw - 1}" height="${ch - 1}" rx="2" fill="rgb(${brightness},${brightness},${brightness+10})" stroke="none"/>`;
+    }
+  }
+  svg.innerHTML = html;
+}
+
+function highlightRow(id) {
+  const svg = document.getElementById('embed-svg');
+  const cells = svg.querySelectorAll('.embed-cell');
+  const mapped = id === 0 ? 0 : id === 40 ? 1 : id === 367 ? 2 : id === 2885 ? 4 : id === 50256 ? 14 : -1;
+  cells.forEach(c => {
+    const r = parseInt(c.getAttribute('data-row'));
+    if (r === mapped) {
+      c.setAttribute('fill', '#14B8A6');
+    } else {
+      const b = 180 + (parseInt(c.getAttribute('x')) * 7 % 60);
+      c.setAttribute('fill', `rgb(${b},${b},${b+10})`);
+    }
+  });
+  document.getElementById('embed-info').textContent = `Highlighted row for token ID ${id} -> vector of 256 learned numbers.`;
+}
+
+// ========== ATTENTION CALCULATOR for Section IV ==========
+const WORDS = ['Your','journey','starts','with','one','step'];
+const EMBEDDINGS = [[0.43,0.15,0.89],[0.55,0.87,0.66],[0.57,0.85,0.64],[0.22,0.58,0.33],[0.77,0.25,0.10],[0.05,0.80,0.55]];
+
+function dot(a, b) { return a.reduce((s, v, i) => s + v * b[i], 0); }
+
+function renderAttention(queryIdx) {
+  const wordsDiv = document.getElementById('attn-words');
+  wordsDiv.innerHTML = WORDS.map((w, i) =>
+    `<button class="toggle-btn ${i === queryIdx ? 'active' : ''}" onclick="renderAttention(${i})">${w}</button>`
+  ).join('');
+
+  const q = EMBEDDINGS[queryIdx];
+  const scores = EMBEDDINGS.map(e => dot(q, e));
+  const sum = scores.reduce((a, b) => a + b, 0);
+  const weights = scores.map(s => s / sum);
+  const context = [0, 1, 2].map(d =>
+    weights.reduce((s, w, i) => s + w * EMBEDDINGS[i][d], 0)
+  );
+
+  const svg = document.getElementById('attn-svg');
+  const barW = 80, barH = 120, gap = 16, sx = 40;
+  let html = '';
+  const maxScore = Math.max(...scores);
+  for (let i = 0; i < 6; i++) {
+    const x = sx + i * (barW + gap);
+    const h = (scores[i] / maxScore) * barH;
+    const y = 150 - h;
+    const fill = i === queryIdx ? '#0F766E' : '#94A3B8';
+    html += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="${fill}" opacity="0.7"/>`;
+    html += `<text x="${x + barW/2}" y="170" text-anchor="middle" font-family="var(--sans)" font-size="11" fill="#444">${WORDS[i]}</text>`;
+    html += `<text x="${x + barW/2}" y="${y - 6}" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="${fill}">${scores[i].toFixed(4)}</text>`;
+    html += `<text x="${x + barW/2}" y="188" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="#999">w=${weights[i].toFixed(4)}</text>`;
+  }
+  html += `<text x="${sx}" y="215" font-family="var(--sans)" font-size="11" fill="#666">Query: "${WORDS[queryIdx]}" = [${q.join(', ')}]</text>`;
+  svg.innerHTML = html;
+
+  document.getElementById('attn-result').textContent =
+    `Context vector = [${context.map(v => v.toFixed(4)).join(', ')}]`;
+}
+
+// ========== CAUSAL MASK for Section VI ==========
+function renderCausal(masked) {
+  const svg = document.getElementById('causal-svg');
+  const N = 6, cw = 70, ch = 36, sx = 110, sy = 40;
+  const scores = EMBEDDINGS.map(q => EMBEDDINGS.map(k => dot(q, k)));
+  let html = '';
+
+  for (let i = 0; i < N; i++) {
+    html += `<text x="${sx + i * cw + cw/2}" y="${sy - 10}" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="#999">${WORDS[i]}</text>`;
+    html += `<text x="${sx - 10}" y="${sy + i * ch + ch/2 + 4}" text-anchor="end" font-family="var(--sans)" font-size="10" fill="#999">${WORDS[i]}</text>`;
+  }
+
+  for (let r = 0; r < N; r++) {
+    const row = [];
+    for (let c = 0; c < N; c++) {
+      if (masked && c > r) {
+        row.push(0);
+      } else {
+        row.push(scores[r][c]);
+      }
+    }
+    const rowSum = row.reduce((a, b) => a + Math.exp(b), 0);
+    const rowWeights = row.map((v, c) => {
+      if (masked && c > r) return 0;
+      return Math.exp(v) / rowSum;
+    });
+
+    for (let c = 0; c < N; c++) {
+      const x = sx + c * cw, y = sy + r * ch;
+      const isMasked = masked && c > r;
+      const w = rowWeights[c];
+      const intensity = Math.floor(255 - w * 400);
+      const fill = isMasked ? '#FEE2E2' : `rgb(${intensity}, ${Math.min(255, intensity + 40)}, ${intensity})`;
+      const textColor = isMasked ? '#EF4444' : (w > 0.2 ? '#fff' : '#444');
+      html += `<rect x="${x}" y="${y}" width="${cw - 2}" height="${ch - 2}" rx="4" fill="${fill}" stroke="#E5E5E0" stroke-width="1"/>`;
+      html += `<text x="${x + cw/2 - 1}" y="${y + ch/2 + 3}" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="${textColor}">${isMasked ? '-inf' : w.toFixed(2)}</text>`;
+    }
+  }
+  svg.innerHTML = html;
+}
+
+function setCausalMask(on) {
+  document.getElementById('mask-on-btn').classList.toggle('active', on);
+  document.getElementById('mask-off-btn').classList.toggle('active', !on);
+  renderCausal(on);
+}
+
+// ========== MULTI-HEAD SPLIT for Section VII ==========
+function renderHeads() {
+  const svg = document.getElementById('head-svg');
+  const nHeads = 12, totalW = 580, headW = totalW / nHeads, sx = 40, sy = 30, h = 50;
+  const headColors = ['#EF4444','#F97316','#F59E0B','#84CC16','#10B981','#14B8A6','#06B6D4','#3B82F6','#6366F1','#8B5CF6','#A855F7','#EC4899'];
+  let html = '';
+  html += `<text x="${sx + totalW/2}" y="20" text-anchor="middle" font-family="var(--sans)" font-size="12" fill="#666" font-weight="600">768-dim embedding vector</text>`;
+  for (let i = 0; i < nHeads; i++) {
+    const x = sx + i * headW;
+    html += `<rect x="${x}" y="${sy}" width="${headW - 2}" height="${h}" rx="4" fill="${headColors[i]}22" stroke="${headColors[i]}" stroke-width="2"/>`;
+    html += `<text x="${x + headW/2}" y="${sy + h/2 + 4}" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="${headColors[i]}">64</text>`;
+  }
+  for (let i = 0; i < nHeads; i++) {
+    const x = sx + i * headW;
+    html += `<text x="${x + headW/2}" y="${sy + h + 18}" text-anchor="middle" font-family="var(--sans)" font-size="8" fill="#999">H${i + 1}</text>`;
+  }
+  html += `<text x="${sx + totalW/2}" y="${sy + h + 38}" text-anchor="middle" font-family="var(--sans)" font-size="11" fill="#999">12 heads x 64 dims = 768 total</text>`;
+  svg.innerHTML = html;
+}
+
+// ========== SHAPE STEPPER for Section IX ==========
+const STEPS = [
+  { label: 'Input', shape: '[2, 5]', desc: '2 sentences, 5 token IDs each. Just integers, no vectors yet.', color: '#94A3B8' },
+  { label: 'Token Embed', shape: '[2, 5, 768]', desc: 'Each token ID looked up in the embedding table -> 768-dim vector.', color: '#3B82F6' },
+  { label: '+ Pos Embed', shape: '[2, 5, 768]', desc: 'Positional vectors added element-wise. Same shape, but now encodes position.', color: '#6366F1' },
+  { label: 'Dropout', shape: '[2, 5, 768]', desc: '10% of values randomly zeroed during training. Shape unchanged.', color: '#8B5CF6' },
+  { label: 'x12 Layers', shape: '[2, 5, 768]', desc: '12 transformer blocks (LN -> Attn -> +skip -> LN -> FFN -> +skip). Shape stays the same!', color: '#0F766E' },
+  { label: 'Final LN', shape: '[2, 5, 768]', desc: 'Final LayerNorm normalizes each token vector.', color: '#14B8A6' },
+  { label: 'Linear', shape: '[2, 5, 50257]', desc: 'Linear(768 -> 50257) produces a score for every vocab token at every position.', color: '#F59E0B' },
+  { label: 'argmax', shape: 'token ID', desc: 'Pick the highest score at the last position -> predicted next token number.', color: '#EF4444' },
+];
+
+function renderShapes(activeIdx) {
+  const stepsDiv = document.getElementById('shape-steps');
+  stepsDiv.innerHTML = STEPS.map((s, i) =>
+    `<button class="toggle-btn ${i === activeIdx ? 'active' : ''}" style="${i === activeIdx ? 'background:' + s.color + ';border-color:' + s.color : ''}" onclick="renderShapes(${i})">${s.label}</button>`
+  ).join('');
+
+  const svg = document.getElementById('shape-svg');
+  const totalW = 560, sx = 50, sy = 40;
+  let html = '';
+
+  for (let i = 0; i < STEPS.length; i++) {
+    const x = sx + i * (totalW / STEPS.length);
+    const w = totalW / STEPS.length - 6;
+    const isActive = i === activeIdx;
+    const isPast = i <= activeIdx;
+    const fill = isPast ? STEPS[i].color + '22' : '#f8f8f8';
+    const stroke = isPast ? STEPS[i].color : '#ddd';
+    const h = isActive ? 100 : 60;
+    const y = sy + (isActive ? 0 : 20);
+
+    html += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="${isActive ? 2.5 : 1.5}" cursor="pointer" onclick="renderShapes(${i})"/>`;
+    html += `<text x="${x + w/2}" y="${y + (isActive ? 35 : 25)}" text-anchor="middle" font-family="var(--sans)" font-size="${isActive ? 11 : 9}" fill="${isPast ? STEPS[i].color : '#999'}" font-weight="600">${STEPS[i].label}</text>`;
+    if (isActive) {
+      html += `<text x="${x + w/2}" y="${y + 60}" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="${STEPS[i].color}" font-weight="700">${STEPS[i].shape}</text>`;
+    }
+    if (i < STEPS.length - 1) {
+      html += `<line x1="${x + w}" y1="${sy + 50}" x2="${x + w + 6}" y2="${sy + 50}" stroke="#ccc" stroke-width="1.5" marker-end="url(#arr2)"/>`;
+    }
+  }
+  html += `<defs><marker id="arr2" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0, 6 2.5, 0 5" fill="#ccc"/></marker></defs>`;
+
+  svg.innerHTML = html;
+  document.getElementById('shape-info').innerHTML = `<strong style="color:${STEPS[activeIdx].color}">${STEPS[activeIdx].label}:</strong> ${STEPS[activeIdx].desc}<br><span style="font-family:var(--mono);font-size:0.8rem;">Shape: ${STEPS[activeIdx].shape}</span>`;
+}
+
+// ========== OUTPUT BAR CHART for Section X ==========
+function renderOutput() {
+  const svg = document.getElementById('output-svg');
+  const tokens = ['the','cat','sat','on','it'];
+  const scores = [-0.04, 0.42, 0.10, 0.19, 0.11];
+  const maxS = Math.max(...scores);
+  const barW = 80, gap = 30, sx = 80, maxH = 140, baseY = 170;
+  let html = '';
+  for (let i = 0; i < tokens.length; i++) {
+    const x = sx + i * (barW + gap);
+    const h = Math.max(4, ((scores[i] - Math.min(...scores)) / (maxS - Math.min(...scores))) * maxH);
+    const y = baseY - h;
+    const isMax = scores[i] === maxS;
+    const fill = isMax ? '#10B981' : '#94A3B8';
+    html += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="6" fill="${fill}" opacity="${isMax ? 1 : 0.5}"/>`;
+    html += `<text x="${x + barW/2}" y="${baseY + 20}" text-anchor="middle" font-family="var(--sans)" font-size="13" fill="#444" font-weight="${isMax ? 700 : 400}">"${tokens[i]}"</text>`;
+    html += `<text x="${x + barW/2}" y="${y - 8}" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="${fill}" font-weight="600">${scores[i].toFixed(2)}</text>`;
+    if (isMax) {
+      html += `<text x="${x + barW/2}" y="${y - 24}" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="#10B981" font-weight="700">PREDICTED</text>`;
+    }
+  }
+  html += `<line x1="${sx - 10}" y1="${baseY}" x2="${sx + tokens.length * (barW + gap)}" y2="${baseY}" stroke="#E5E5E0" stroke-width="1.5"/>`;
+  svg.innerHTML = html;
+}
+
+// ========== INIT ALL ==========
+document.addEventListener('DOMContentLoaded', () => {
+  renderTokenizer();
+  renderWindow();
+  renderEmbedding();
+  renderAttention(1);
+  renderCausal(true);
+  renderHeads();
+  renderShapes(0);
+  renderOutput();
+});
+</script>
+
+</body>
+</html>
