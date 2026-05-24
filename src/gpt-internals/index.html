@@ -272,7 +272,7 @@
 </header>
 
 <div class="nutshell">
-  This walkthrough follows the code in <strong>My&nbsp;llm/</strong> chapter by chapter.
+  This walkthrough follows the code in <a href="https://github.com/IrriDileepKumar/Gpt-from-Scratch" target="_blank" style="font-weight:600; font-style:normal;">Gpt from Scratch</a> chapter by chapter.
   Every concept includes the exact math, real tensor shapes, and interactive widgets
   so you can revisit any piece when you get stuck. From raw text to next-token prediction &mdash; no hand-waving.
 </div>
@@ -313,7 +313,7 @@
   <p>In <code>simpleTokenizer.py</code>, we built a tiny hand-crafted vocabulary:</p>
 
   <div class="code-block">
-    <span class="file">My llm/chapter2/encoders/simpleTokenizer.py</span>
+    <span class="file"><a href="https://github.com/IrriDileepKumar/Gpt-from-Scratch/blob/main/chapter2/encoders/simpleTokenizer.py" target="_blank" style="color:inherit;text-decoration:none;">Gpt from Scratch / chapter2 / encoders / simpleTokenizer.py</a></span>
 <span class="cm"># vocabulary mapping</span>
 vocabulary = {<span class="str">'&lt;pad&gt;'</span>:<span class="num">0</span>, <span class="str">'&lt;unk&gt;'</span>:<span class="num">1</span>, <span class="str">'&lt;s&gt;'</span>:<span class="num">2</span>, <span class="str">'&lt;/s&gt;'</span>:<span class="num">3</span>,
               <span class="str">'hello'</span>:<span class="num">4</span>, <span class="str">','</span>:<span class="num">5</span>, <span class="str">'how'</span>:<span class="num">6</span>, <span class="str">'are'</span>:<span class="num">7</span>,
@@ -366,7 +366,7 @@ IDs:    [  1,   5,    6,    7,    8,   9 ]
   <p>A model cannot train on a big text file directly. It needs small batches of numbers with <strong>input/target pairs</strong>. The target is always the input shifted by one &mdash; <em>predict the next token</em>.</p>
 
   <div class="code-block">
-    <span class="file">My llm/chapter2/encoders/data_preparation.py</span>
+    <span class="file"><a href="https://github.com/IrriDileepKumar/Gpt-from-Scratch/blob/main/chapter2/encoders/data_preparation.py" target="_blank" style="color:inherit;text-decoration:none;">Gpt from Scratch / chapter2 / encoders / data_preparation.py</a></span>
 token_ids = tokenizer.encode(text)
 <span class="kw">for</span> i <span class="kw">in</span> range(<span class="num">0</span>, len(token_ids) - max_length, stride):
     input_ids.append(token_ids[i : i + max_length])
@@ -410,7 +410,7 @@ The model learns:
   <p>Token IDs are just arbitrary numbers. <code>nn.Embedding</code> turns each ID into a <strong>dense vector</strong> by looking up a row in a big weight matrix.</p>
 
   <div class="code-block">
-    <span class="file">My llm/chapter2/encoders/TokenEmbedding.py</span>
+    <span class="file"><a href="https://github.com/IrriDileepKumar/Gpt-from-Scratch/blob/main/chapter2/encoders/TokenEmbedding.py" target="_blank" style="color:inherit;text-decoration:none;">Gpt from Scratch / chapter2 / encoders / TokenEmbedding.py</a></span>
 vocab_size = <span class="num">50257</span>     <span class="cm"># GPT-2 tokenizer size</span>
 output_dim = <span class="num">256</span>       <span class="cm"># embedding vector length</span>
 
@@ -471,7 +471,7 @@ Position 3:  E[1464] + P[3]</div>
   <p>Attention lets each word look at every other word and decide <em>how much to listen</em>. In this simplified version, Q = K = V = the input embeddings themselves (no learned projections yet).</p>
 
   <div class="code-block">
-    <span class="file">My llm/Chapter 3 - Self Attention/simpleAttention.py</span>
+    <span class="file"><a href="https://github.com/IrriDileepKumar/Gpt-from-Scratch/blob/main/Chapter%203%20-%20Self%20Attention/simpleAttention.py" target="_blank" style="color:inherit;text-decoration:none;">Gpt from Scratch / Chapter 3 - Self Attention / simpleAttention.py</a></span>
 input_embedding = torch.tensor([
     [<span class="num">0.43</span>, <span class="num">0.15</span>, <span class="num">0.89</span>],   <span class="cm"># Your     (x1)</span>
     [<span class="num">0.55</span>, <span class="num">0.87</span>, <span class="num">0.66</span>],   <span class="cm"># journey  (x2) &lt;- query</span>
@@ -543,7 +543,7 @@ full_context_vector    = weights @ X          <span class="cm"># weighted sum (V
   <p>In simplified attention, Q = K = V (same matrix). Real transformers give each a <strong>separate learned projection</strong> so the model can learn <em>different</em> views for querying, being queried, and carrying information.</p>
 
   <div class="code-block">
-    <span class="file">My llm/Chapter 3 - Self Attention/trainableAttention.py</span>
+    <span class="file"><a href="https://github.com/IrriDileepKumar/Gpt-from-Scratch/blob/main/Chapter%203%20-%20Self%20Attention/trainableAttention.py" target="_blank" style="color:inherit;text-decoration:none;">Gpt from Scratch / Chapter 3 - Self Attention / trainableAttention.py</a></span>
 w_q = nn.Parameter(torch.rand(d_in, d_out))
 w_k = nn.Parameter(torch.rand(d_in, d_out))
 w_v = nn.Parameter(torch.rand(d_in, d_out))
@@ -630,7 +630,7 @@ Step 7:  Context = Weights @ V  shape (N, d_v)</div>
   <p>In GPT, when predicting the next token at position 3, the model must <strong>not</strong> see tokens at positions 4, 5, 6... That would be cheating. Causal attention masks the upper triangle of the score matrix with <code>-inf</code> so future tokens get zero weight after softmax.</p>
 
   <div class="code-block">
-    <span class="file">My llm/Chapter 3 - Self Attention/casualAttention.py</span>
+    <span class="file"><a href="https://github.com/IrriDileepKumar/Gpt-from-Scratch/blob/main/Chapter%203%20-%20Self%20Attention/casualAttention.py" target="_blank" style="color:inherit;text-decoration:none;">Gpt from Scratch / Chapter 3 - Self Attention / casualAttention.py</a></span>
 casual_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=<span class="num">1</span>).bool()
 scaled_attention_scores.masked_fill_(casual_mask, <span class="kw">float</span>(<span class="str">'-inf'</span>))
 attention_weights = torch.softmax(scaled_attention_scores, dim=-<span class="num">1</span>)
@@ -660,7 +660,7 @@ attention_weights = torch.softmax(scaled_attention_scores, dim=-<span class="num
   <p>One attention pass captures one kind of relationship. <strong>Multi-head attention</strong> runs several attention passes in parallel, each on a <em>slice</em> of the embedding, then concatenates the results.</p>
 
   <div class="code-block">
-    <span class="file">My llm/Chapter 4 - LLM Architecture/multiHeadAttention.py</span>
+    <span class="file"><a href="https://github.com/IrriDileepKumar/Gpt-from-Scratch/blob/main/Chapter%204%20-%20LLM%20Architecture/multiHeadAttention.py" target="_blank" style="color:inherit;text-decoration:none;">Gpt from Scratch / Chapter 4 - LLM Architecture / multiHeadAttention.py</a></span>
 self.num_heads = num_heads                          <span class="cm"># 12</span>
 self.head_dim  = dimension_in // num_heads          <span class="cm"># 768/12 = 64</span>
 
@@ -748,7 +748,7 @@ For a token vector x = [a, b, c, ..., 768 values]:
   <p><strong>BeensGPT</strong> ties everything together: embeddings, 12 transformer layers, and an output head that predicts the next token.</p>
 
   <div class="code-block">
-    <span class="file">My llm/Chapter 4 - LLM Architecture/beensGPT.py</span>
+    <span class="file"><a href="https://github.com/IrriDileepKumar/Gpt-from-Scratch/blob/main/Chapter%204%20-%20LLM%20Architecture/beensGPT.py" target="_blank" style="color:inherit;text-decoration:none;">Gpt from Scratch / Chapter 4 - LLM Architecture / beensGPT.py</a></span>
 beensGPT_config = {
     <span class="str">"vocab_size"</span>:      <span class="num">50257</span>,
     <span class="str">"context_length"</span>:  <span class="num">1024</span>,
