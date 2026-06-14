@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Speculative Decoding</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..800;1,6..72,300..800&family=Figtree:wght@300..900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { font-size: 21px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+    body {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 1rem;
+      line-height: 1.55;
+      color: #2d2d2d;
+      background-color: #faf9f7;
+    }
+
+    :root {
+      --serif: 'Newsreader', Georgia, serif;
+      --sans: 'Figtree', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+      --bg: #faf9f7;
+      --text: #2d2d2d;
+      --brand: #D97706;
+      --brand-light: #F59E0B;
+      --accent: #7C3AED;
+      --border: #E5E5E0;
+      --widget-bg: #FFFBEB;
+      --content-width: 700px;
+      --content-padding: 45px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 20px 32px;
+      font-family: var(--sans);
+    }
+    .logo { font-weight: 800; font-size: 0.75rem; text-decoration: none; color: var(--text); line-height: 1.1; }
+    .logo-secondary { font-style: italic; font-weight: 400; color: #666; }
+
+    .post-header {
+      max-width: 960px;
+      margin: 0 auto 44px;
+      border-radius: 18px;
+      overflow: hidden;
+      position: relative;
+      min-height: 280px;
+      display: flex;
+      align-items: flex-end;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .header__bg {
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #92400E 0%, #D97706 35%, #F59E0B 70%, #FDE68A 100%);
+      z-index: 0;
+    }
+    .header__overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.02) 100%);
+      z-index: 1;
+    }
+    .header__text { position: relative; z-index: 2; padding: 44px 52px; color: white; }
+    .post-title { font-family: var(--sans); font-size: 2.8rem; font-weight: 800; line-height: 1.1; margin-bottom: 10px; letter-spacing: -0.02em; }
+    .post-subtitle { font-family: var(--sans); font-size: 1.1rem; font-weight: 400; opacity: 0.85; line-height: 1.35; }
+
+    .nutshell {
+      max-width: var(--content-width);
+      margin: 0 auto 28px;
+      padding: 0 var(--content-padding);
+      font-style: italic;
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: #555;
+    }
+    .nutshell a { color: var(--brand); font-weight: 600; font-style: normal; }
+
+    hr.full-width { border: none; border-top: 1px solid var(--border); margin: 32px auto; max-width: 960px; }
+
+    article {
+      max-width: var(--content-width);
+      margin: 0 auto;
+      padding: 0 var(--content-padding);
+      border-left: 2px solid var(--border);
+    }
+
+    .toc-wrapper {
+      margin: 36px 0 52px;
+      padding: 28px 32px;
+      background: white;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.03);
+    }
+    .toc-wrapper h4 { font-family: var(--sans); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; color: var(--brand); }
+    .toc ol { list-style: none; counter-reset: toc-counter; }
+    .toc ol li { counter-increment: toc-counter; padding: 5px 0; font-family: var(--sans); font-size: 0.8rem; transition: padding-left 0.2s; }
+    .toc ol li:hover { padding-left: 6px; }
+    .toc ol li::before { content: counter(toc-counter, upper-roman) "."; display: inline-block; width: 40px; font-weight: 500; color: var(--brand-light); }
+    .toc a { color: var(--text); text-decoration: none; transition: color 0.2s; }
+    .toc a:hover { color: var(--brand); }
+
+    .section-heading {
+      display: flex; align-items: center; gap: 18px;
+      margin: 80px -60px 36px -60px;
+      padding: 20px 0;
+      border-top: 2px solid var(--border);
+      border-bottom: 2px solid var(--border);
+      background: var(--bg);
+    }
+    .section-number { font-family: var(--sans); font-size: 1.8rem; font-weight: 300; color: var(--brand-light); min-width: 60px; text-align: right; opacity: 0.6; }
+    .section-heading h2 { font-family: var(--serif); font-size: 1.6rem; font-weight: 700; color: var(--text); line-height: 1.2; }
+
+    p { margin-bottom: 1rem; }
+    h3 { font-family: var(--serif); font-size: 1.2rem; font-weight: 600; margin: 2rem 0 0.8rem; }
+    ol, ul { margin: 0 0 1rem 1.2rem; }
+    li { margin-bottom: 0.3rem; }
+    strong { font-weight: 600; }
+    a { color: var(--brand); }
+    code { font-family: var(--mono); font-size: 0.82em; background: #F5F5F0; padding: 2px 6px; border-radius: 4px; }
+
+    .figure-container {
+      margin: 28px -24px;
+      padding: 24px 28px;
+      background: white;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .widget-label { font-family: var(--sans); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--brand); margin-bottom: 4px; }
+    .figure-caption { margin-top: 12px; font-family: var(--sans); font-size: 0.68rem; color: #aaa; text-align: center; line-height: 1.4; }
+
+    .math-block {
+      background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+      border-left: 4px solid var(--brand);
+      border-radius: 0 12px 12px 0;
+      padding: 20px 24px;
+      margin: 24px 0;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      line-height: 1.9;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      color: #1E293B;
+    }
+
+    .pipeline-box {
+      background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+      color: #E2E8F0;
+      border: none;
+      border-radius: 12px;
+      padding: 28px 32px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      line-height: 2;
+      margin: 24px 0;
+      overflow-x: auto;
+      white-space: pre;
+      text-align: left;
+    }
+
+    .sidenote {
+      background: linear-gradient(135deg, #FDF4FF 0%, #FAF5FF 100%);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 10px 10px 0;
+      padding: 18px 22px;
+      margin: 24px 0;
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: #555;
+    }
+    .sidenote strong { display: block; margin-bottom: 6px; color: var(--accent); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      margin: 20px 0;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    table.data-table th, table.data-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      text-align: left;
+    }
+    table.data-table th { background: #F8FAFC; font-weight: 700; color: #475569; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    table.data-table tr:last-child td { border-bottom: none; }
+    table.data-table tr:hover td { background: #FAFAFA; }
+
+    .toggle-btn {
+      padding: 8px 16px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      font-family: var(--sans);
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 500;
+    }
+    .toggle-btn:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(217,119,6,0.12); }
+    .toggle-btn.active { background: linear-gradient(135deg, var(--brand), var(--brand-light)); color: white; border-color: transparent; box-shadow: 0 2px 8px rgba(217,119,6,0.25); }
+
+    .footer {
+      max-width: var(--content-width);
+      margin: 72px auto 0;
+      padding: 28px var(--content-padding) 64px;
+      border-top: 1px solid var(--border);
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      color: #aaa;
+      text-align: center;
+    }
+    .footer a { color: var(--brand); text-decoration: none; font-weight: 500; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* Interactive demo styles */
+    .demo-controls {
+      display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0;
+      font-family: var(--sans); font-size: 0.78rem;
+    }
+    .demo-controls label { display: flex; align-items: center; gap: 6px; }
+
+    .token-row {
+      display: flex; gap: 2px; margin: 8px 0; align-items: center;
+    }
+    .token-cell {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      padding: 8px 12px;
+      border-radius: 6px;
+      text-align: center;
+      min-width: 56px;
+      transition: all 0.3s ease;
+      border: 2px solid transparent;
+    }
+    .token-draft { background: #DBEAFE; color: #1E40AF; }
+    .token-accepted { background: #D1FAE5; color: #065F46; border-color: #34D399; }
+    .token-rejected { background: #FEE2E2; color: #991B1B; border-color: #F87171; }
+    .token-corrected { background: #FDE68A; color: #92400E; border-color: var(--brand); }
+    .token-pending { background: #F3F4F6; color: #6B7280; }
+    .token-label {
+      font-family: var(--sans);
+      font-size: 0.6rem;
+      font-weight: 600;
+      min-width: 70px;
+      text-align: right;
+      padding-right: 8px;
+      color: #999;
+    }
+
+    .status-icon { font-size: 0.7rem; margin-left: 2px; }
+
+    .speed-bar {
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-family: var(--sans);
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: white;
+      margin: 4px 0;
+      transition: width 0.6s ease;
+    }
+
+    .prob-bar-track {
+      height: 20px;
+      background: #F3F4F6;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .prob-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+
+    @media (max-width: 700px) {
+      html { font-size: 18px; }
+      .post-title { font-size: 1.8rem; }
+      .header__text { padding: 24px; }
+      article { padding: 0 18px; }
+      .section-heading { margin-left: -18px; margin-right: -18px; padding: 12px 8px; }
+      .figure-container { margin: 16px -10px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="../index.html">Interactive Explainers<br><span class="logo-secondary">Learning by playing</span></a>
+</nav>
+
+<header class="post-header">
+  <div class="header__bg"></div>
+  <div class="header__overlay"></div>
+  <div class="header__text">
+    <h1 class="post-title">Speculative Decoding</h1>
+    <h2 class="post-subtitle">How a small model's guesses let a big model verify in bulk &mdash; for 2&ndash;3&times; faster inference with identical outputs.</h2>
+  </div>
+</header>
+
+<div class="nutshell">
+  Based on <a href="https://arxiv.org/abs/2211.17192" target="_blank">Fast Inference from Transformers via Speculative Decoding</a> by Leviathan, Kalman &amp; Matias (Google Research, ICML 2023 Oral).
+  Instead of generating one token at a time, let a cheap draft model guess several tokens ahead, then have the expensive target model verify them all in one forward pass.
+</div>
+
+<hr class="full-width">
+
+<article>
+
+  <!-- TABLE OF CONTENTS -->
+  <div class="toc-wrapper">
+    <h4>Contents</h4>
+    <div class="toc">
+      <ol>
+        <li><a href="#sec-problem">The Bottleneck &mdash; Why Autoregressive Decoding is Slow</a></li>
+        <li><a href="#sec-core-idea">The Core Idea &mdash; Draft, Verify, Accept</a></li>
+        <li><a href="#sec-algorithm">The Algorithm &mdash; Step by Step</a></li>
+        <li><a href="#sec-rejection">Modified Rejection Sampling &mdash; Why Outputs are Identical</a></li>
+        <li><a href="#sec-residual">The Residual Distribution &mdash; What Happens on Rejection</a></li>
+        <li><a href="#sec-gamma">Choosing &gamma; &mdash; How Many Tokens to Draft</a></li>
+        <li><a href="#sec-speedup">Expected Speedup &mdash; The Math</a></li>
+        <li><a href="#sec-why-gpus">Why GPUs Benefit &mdash; Memory vs. Compute</a></li>
+        <li><a href="#sec-results">Experimental Results</a></li>
+        <li><a href="#sec-impact">Impact &amp; Variants</a></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION I: THE PROBLEM                       -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-problem">
+    <span class="section-number">I.</span>
+    <h2>Why Autoregressive Decoding is Slow</h2>
+  </div>
+
+  <p>Traditional autoregressive decoding generates one token per forward pass. For <em>K</em> tokens, the large model executes <em>K</em> sequential forward passes. Each pass loads billions of parameters from memory, and most of the GPU's arithmetic units sit idle.</p>
+
+  <div class="pipeline-box">Prompt
+  &darr;
+Large Model &rarr; Token<sub>1</sub>    (50 ms)
+Large Model &rarr; Token<sub>2</sub>    (50 ms)
+Large Model &rarr; Token<sub>3</sub>    (50 ms)
+Large Model &rarr; Token<sub>4</sub>    (50 ms)
+                        Total: 200 ms for 4 tokens</div>
+
+  <p>The key insight: the large model can evaluate <strong>multiple positions simultaneously</strong> in a single forward pass (just like during training). Speculative decoding exploits this by filling those positions with educated guesses.</p>
+
+  <!-- ============================================ -->
+  <!-- SECTION II: THE CORE IDEA                    -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-core-idea">
+    <span class="section-number">II.</span>
+    <h2>Draft, Verify, Accept</h2>
+  </div>
+
+  <p>The system uses two models:</p>
+
+  <div class="pipeline-box"><span style="color:#93C5FD;">Small Draft Model</span> (fast, approximate)
+  &darr;
+Predicts &gamma; future tokens cheaply
+  &darr;
+<span style="color:#FDE68A;">Large Target Model</span> (slow, accurate)
+  &darr;
+Verifies all &gamma; predictions in one forward pass
+  &darr;
+Accept correct guesses, fix incorrect ones</div>
+
+  <p>If the draft model predicts correctly, multiple tokens are generated for the cost of a single large-model forward pass.</p>
+
+  <h3>Worked example</h3>
+
+  <div class="math-block">Prompt: "Once upon a"
+
+Draft model predicts:  time  there  was  a
+Target model verifies all 4 in one pass:
+
+  time   &#x2713;  (accept)
+  there  &#x2713;  (accept)
+  was    &#x2713;  (accept)
+  a      &#x2713;  (accept)
+
+Result: 4 tokens generated in 1 expensive pass
+Normal decoding: 4 tokens in 4 expensive passes</div>
+
+  <!-- INTERACTIVE: Normal vs Speculative timing -->
+  <div class="figure-container" id="timing-demo">
+    <div class="widget-label">Interactive &mdash; Normal vs. Speculative Decoding Timing</div>
+    <div class="demo-controls">
+      <label>Tokens to generate: <input type="range" id="timing-tokens" min="2" max="12" value="6" style="vertical-align:middle;"> <span id="timing-tokens-val">6</span></label>
+      <label>Draft cost (ms): <input type="range" id="timing-draft" min="1" max="20" value="5" style="vertical-align:middle;"> <span id="timing-draft-val">5</span></label>
+      <label>Target cost (ms): <input type="range" id="timing-target" min="20" max="100" value="50" style="vertical-align:middle;"> <span id="timing-target-val">50</span></label>
+    </div>
+    <div id="timing-output" style="margin-top:16px;"></div>
+    <div class="figure-caption">Assumes all draft tokens are accepted (best case). Adjust parameters to see how the ratio of draft-to-target cost affects speedup.</div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION III: THE ALGORITHM                   -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-algorithm">
+    <span class="section-number">III.</span>
+    <h2>The Algorithm &mdash; Step by Step</h2>
+  </div>
+
+  <p><strong>Step 1: Draft generation.</strong> The small model generates &gamma; tokens autoregressively, recording each token's probability <em>q(x)</em>.</p>
+
+  <div class="math-block">Prompt: "The capital of France is"
+
+Draft model (e.g. Llama 8B) predicts &gamma;=5 tokens:
+  Paris  and  it  is  famous
+
+Each with draft probabilities q(x):
+  q(Paris)=0.80  q(and)=0.60  q(it)=0.55  q(is)=0.50  q(famous)=0.40</div>
+
+  <p><strong>Step 2: Parallel verification.</strong> The target model computes probabilities for all &gamma; drafted positions in a single forward pass.</p>
+
+  <div class="math-block">Target model (e.g. Llama 70B) evaluates all 5 positions at once:
+
+  p(Paris  | ...France is)     = 0.70
+  p(and    | ...France is Paris) = 0.45
+  p(it     | ...Paris and)       = 0.50
+  p(is     | ...and it)          = 0.55
+  p(famous | ...it is)           = 0.35</div>
+
+  <p><strong>Step 3: Accept or reject.</strong> Each token is accepted with probability min(1, p(x)/q(x)). The first rejected token and everything after it are discarded. A corrected token is sampled from the residual distribution.</p>
+
+  <!-- INTERACTIVE: Speculative Decoding Simulator -->
+  <div class="figure-container" id="spec-demo">
+    <div class="widget-label">Interactive &mdash; Speculative Decoding Simulator</div>
+    <div class="demo-controls">
+      <button class="toggle-btn" id="spec-run" onclick="runSpecDecode()">Run Speculation</button>
+      <button class="toggle-btn" id="spec-reset" onclick="resetSpecDecode()">Reset</button>
+    </div>
+    <div id="spec-output" style="margin-top:12px;">
+      <div style="font-family:var(--sans); font-size:0.75rem; color:#999; padding:20px 0; text-align:center;">Press "Run Speculation" to see the algorithm in action</div>
+    </div>
+    <div class="figure-caption">Each run uses random acceptance. Watch how the draft is verified left-to-right, stopping at the first rejection.</div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION IV: MODIFIED REJECTION SAMPLING      -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-rejection">
+    <span class="section-number">IV.</span>
+    <h2>Why Outputs are Identical</h2>
+  </div>
+
+  <p>This is the paper's main contribution. It's not just "small model guesses, big model checks." The authors prove that the output distribution is <strong>exactly identical</strong> to sampling from the target model alone.</p>
+
+  <p>The trick is <strong>modified rejection sampling</strong>. Each drafted token <em>x</em> is accepted with probability:</p>
+
+  <div class="math-block">acceptance probability = min(1, p(x) / q(x))
+
+where  p(x) = target model probability
+       q(x) = draft model probability</div>
+
+  <h3>Why naive acceptance would be wrong</h3>
+
+  <p>If we simply accepted every draft token, the output distribution would match the <em>draft</em> model, not the target. Consider:</p>
+
+  <div class="math-block">Target distribution p(x):      Draft distribution q(x):
+  Paris  : 0.70                   Paris  : 0.80
+  London : 0.20                   London : 0.10
+  Rome   : 0.10                   Rome   : 0.10
+
+Naive acceptance &rarr; output follows q(x), not p(x)
+Rejection sampling &rarr; output follows p(x) exactly</div>
+
+  <!-- INTERACTIVE: Acceptance Probability Calculator -->
+  <div class="figure-container" id="accept-demo">
+    <div class="widget-label">Interactive &mdash; Acceptance Probability</div>
+    <div style="font-family:var(--sans); font-size:0.78rem; margin:12px 0;">
+      <div style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:12px;">
+        <label>p(x) target: <input type="range" id="acc-p" min="0" max="100" value="70" style="vertical-align:middle;width:120px;"> <span id="acc-p-val">0.70</span></label>
+        <label>q(x) draft: <input type="range" id="acc-q" min="1" max="100" value="80" style="vertical-align:middle;width:120px;"> <span id="acc-q-val">0.80</span></label>
+      </div>
+    </div>
+    <div id="accept-output" style="margin-top:8px;"></div>
+    <div class="figure-caption">When p(x) &ge; q(x), the token is always accepted. When q(x) overestimates, acceptance probability drops proportionally.</div>
+  </div>
+
+  <h3>Acceptance for each token</h3>
+
+  <div class="math-block">Token   p(x)   q(x)   min(1, p/q)   Accepted?
+Paris   0.70   0.80   0.875         87.5% of the time
+London  0.20   0.10   1.000         Always accepted
+Rome    0.10   0.10   1.000         Always accepted</div>
+
+  <p>When the draft model <em>underestimates</em> a token's probability (p &gt; q), that token is always accepted. Rejection only happens when the draft model is <em>overconfident</em> relative to the target.</p>
+
+  <!-- ============================================ -->
+  <!-- SECTION V: RESIDUAL DISTRIBUTION             -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-residual">
+    <span class="section-number">V.</span>
+    <h2>What Happens on Rejection</h2>
+  </div>
+
+  <p>When a token is rejected, the algorithm does <em>not</em> simply pick the highest-probability remaining token. Instead, it samples from the <strong>residual distribution</strong>:</p>
+
+  <div class="math-block">residual(x) = max(p(x) - q(x), 0)
+
+Then normalize so probabilities sum to 1.</div>
+
+  <h3>Worked example</h3>
+
+  <div class="math-block">Target p(x):  Paris=0.70   London=0.20   Rome=0.10
+Draft  q(x):  Paris=0.90   London=0.05   Rome=0.05
+
+Residual (before normalizing):
+  Paris  : max(0.70 - 0.90, 0) = 0.00
+  London : max(0.20 - 0.05, 0) = 0.15
+  Rome   : max(0.10 - 0.05, 0) = 0.05
+
+Normalize (sum = 0.20):
+  Paris  : 0.00
+  London : 0.15/0.20 = 0.75
+  Rome   : 0.05/0.20 = 0.25
+
+Sample from: London (75%) or Rome (25%)</div>
+
+  <p>This is what preserves the exact target distribution. The rejected token was overrepresented by the draft model, so the residual compensates by boosting the tokens the draft model underrepresented.</p>
+
+  <!-- INTERACTIVE: Residual Distribution -->
+  <div class="figure-container" id="residual-demo">
+    <div class="widget-label">Interactive &mdash; Residual Distribution Calculator</div>
+    <div style="font-family:var(--sans); font-size:0.75rem; margin:12px 0;">
+      <div style="display:grid; grid-template-columns:80px 1fr 1fr; gap:6px; align-items:center; max-width:400px;">
+        <span style="font-weight:600;">Token</span><span style="font-weight:600;">p(x) target</span><span style="font-weight:600;">q(x) draft</span>
+        <span>Paris</span>
+        <input type="range" id="res-p1" min="0" max="100" value="70" style="width:100%;" oninput="updateResidual()">
+        <input type="range" id="res-q1" min="0" max="100" value="90" style="width:100%;" oninput="updateResidual()">
+        <span>London</span>
+        <input type="range" id="res-p2" min="0" max="100" value="20" style="width:100%;" oninput="updateResidual()">
+        <input type="range" id="res-q2" min="0" max="100" value="5" style="width:100%;" oninput="updateResidual()">
+        <span>Rome</span>
+        <input type="range" id="res-p3" min="0" max="100" value="10" style="width:100%;" oninput="updateResidual()">
+        <input type="range" id="res-q3" min="0" max="100" value="5" style="width:100%;" oninput="updateResidual()">
+      </div>
+    </div>
+    <div id="residual-output" style="margin-top:12px;"></div>
+    <div class="figure-caption">Adjust p(x) and q(x) to see how the residual distribution changes. When p and q are similar, the residual is more uniform.</div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION VI: CHOOSING GAMMA                   -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-gamma">
+    <span class="section-number">VI.</span>
+    <h2>How Many Tokens to Draft</h2>
+  </div>
+
+  <p>The draft length &gamma; controls the trade-off between speculation cost and verification payoff:</p>
+
+  <div class="math-block">&gamma; = 1  &rarr;  Almost no speedup (just one guess)
+&gamma; = 5  &rarr;  Good balance for most model pairs
+&gamma; = 50 &rarr;  Many predictions get rejected, wasting draft compute</div>
+
+  <p>There's an optimal &gamma; that depends on the acceptance rate &alpha; and the relative cost of draft vs. target model. If the draft model is much cheaper than the target, larger &gamma; values are worth trying. If the acceptance rate is low (draft model is poor), smaller &gamma; avoids wasted work.</p>
+
+  <div class="sidenote">
+    <strong>Intuition</strong>
+    Think of autocomplete on your phone. If it suggests "Thank you very much" and that's what you intend, you accept the whole phrase instantly. If it suggests "Thank you very elephant," you accept "Thank you very" and type the rest yourself. You still save time because most predictions are correct.
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION VII: EXPECTED SPEEDUP                -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-speedup">
+    <span class="section-number">VII.</span>
+    <h2>The Math Behind the Speedup</h2>
+  </div>
+
+  <p>Define &alpha; as the probability that a single drafted token is accepted. The expected number of accepted tokens from a draft of length &gamma; is:</p>
+
+  <div class="math-block">Expected accepted = 1 + &alpha; + &alpha;&sup2; + &alpha;&sup3; + ... + &alpha;&#x2C6;&gamma;
+
+For &alpha; = 0.9, &gamma; = 4:
+  1 + 0.9 + 0.81 + 0.729 + 0.6561 = 4.10 tokens
+
+So one target-model forward pass produces ~4 tokens on average.</div>
+
+  <p><strong>Guaranteed progress:</strong> even in the worst case (first draft token rejected), the algorithm still samples one corrected token from the target model. Every target-model pass produces at least one token. It never gets stuck.</p>
+
+  <h3>When speculative decoding is slower</h3>
+
+  <div class="math-block">Draft: A B C D     (cost: 4 &times; draft_time)
+Verify: A &#x2717;        (cost: 1 &times; target_time)
+Then regenerate: A' B' C' D' (cost: 4 &times; target_time)
+
+Total = 4&middot;draft + 5&middot;target = 5 expensive passes + draft overhead
+Normal = 4 expensive passes
+
+If first token is always wrong, speculative decoding is slower.</div>
+
+  <p>This is why choosing a good draft model matters. With a well-matched pair (e.g. Llama 70B + Llama 8B), the acceptance rate is high enough that the typical case is several accepted tokens per verification pass.</p>
+
+  <!-- INTERACTIVE: Speedup Calculator -->
+  <div class="figure-container" id="speedup-demo">
+    <div class="widget-label">Interactive &mdash; Expected Speedup Calculator</div>
+    <div class="demo-controls">
+      <label>&alpha; (acceptance rate): <input type="range" id="su-alpha" min="10" max="99" value="85" style="vertical-align:middle;width:140px;" oninput="updateSpeedup()"> <span id="su-alpha-val">0.85</span></label>
+      <label>&gamma; (draft length): <input type="range" id="su-gamma" min="1" max="10" value="5" style="vertical-align:middle;width:100px;" oninput="updateSpeedup()"> <span id="su-gamma-val">5</span></label>
+    </div>
+    <div id="speedup-output" style="margin-top:12px;"></div>
+    <div class="figure-caption">Expected tokens per target-model forward pass. Higher &alpha; and &gamma; give more speedup, but diminishing returns set in.</div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SECTION VIII: WHY GPUS BENEFIT               -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-why-gpus">
+    <span class="section-number">VIII.</span>
+    <h2>Memory vs. Compute</h2>
+  </div>
+
+  <p>Large Transformers at inference time are typically <strong>memory-bandwidth bound</strong>, not compute-bound. Loading billions of parameters from HBM dominates latency, while the GPU's arithmetic units are underutilized.</p>
+
+  <p>Verifying &gamma; positions instead of 1 uses roughly the same memory bandwidth (the model weights are loaded once either way) but fills more arithmetic slots. Speculative decoding essentially uses otherwise idle compute for free.</p>
+
+  <div class="math-block">Single-token decode:
+  Load 70B params from HBM   &rarr;  ~40 ms  (memory-bound)
+  Compute 1 token             &rarr;  ~2 ms   (mostly idle)
+  Total: ~42 ms for 1 token
+
+Speculative verification (5 tokens):
+  Load 70B params from HBM   &rarr;  ~40 ms  (same cost)
+  Compute 5 tokens            &rarr;  ~8 ms   (uses idle ALUs)
+  Total: ~48 ms for 5 tokens  &rarr;  ~5&times; throughput</div>
+
+  <!-- ============================================ -->
+  <!-- SECTION IX: EXPERIMENTAL RESULTS             -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-results">
+    <span class="section-number">IX.</span>
+    <h2>Experimental Results</h2>
+  </div>
+
+  <p>The paper evaluates speculative decoding across several tasks:</p>
+
+  <table class="data-table">
+    <tr><th>Task</th><th>Model</th><th>Speedup</th><th>Output Quality</th></tr>
+    <tr><td>Language modeling</td><td>GPT-style</td><td>2&ndash;3&times;</td><td>Identical</td></tr>
+    <tr><td>Summarization</td><td>T5-XXL</td><td>2&ndash;3&times;</td><td>Identical</td></tr>
+    <tr><td>Translation (EN&rarr;DE)</td><td>T5-XXL</td><td>2&ndash;3&times;</td><td>Identical</td></tr>
+    <tr><td>Dialogue</td><td>LaMDA</td><td>2&ndash;3&times;</td><td>Identical</td></tr>
+  </table>
+
+  <table class="data-table">
+    <tr><th>Property</th><th>Value</th></tr>
+    <tr><td>Retraining required</td><td>No</td></tr>
+    <tr><td>Architecture changes</td><td>None</td></tr>
+    <tr><td>Output distribution</td><td>Mathematically identical to target-only decoding</td></tr>
+  </table>
+
+  <!-- ============================================ -->
+  <!-- SECTION X: IMPACT                            -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-impact">
+    <span class="section-number">X.</span>
+    <h2>Impact &amp; Variants</h2>
+  </div>
+
+  <p>This paper introduced one of the most influential LLM inference optimizations. Many modern serving systems now use speculative decoding or its descendants:</p>
+
+  <table class="data-table">
+    <tr><th>Variant</th><th>Key Idea</th></tr>
+    <tr><td>Assisted Generation</td><td>HuggingFace integration of basic speculative decoding</td></tr>
+    <tr><td>Medusa</td><td>Multiple prediction heads instead of a separate draft model</td></tr>
+    <tr><td>EAGLE</td><td>Feature-level autoregression for draft generation</td></tr>
+    <tr><td>SpecInfer</td><td>Tree-based speculation with multiple draft sequences</td></tr>
+    <tr><td>Multi-draft</td><td>Run several draft models in parallel for higher acceptance</td></tr>
+  </table>
+
+  <div class="sidenote">
+    <strong>Key takeaway</strong>
+    Speculative decoding is purely an inference algorithm. It does not train a new model, modify Transformer layers, change attention, or fine-tune anything. It works with any existing pretrained model pair where the small model is a reasonable approximation of the large one.
+  </div>
+
+  <h3>To master this paper</h3>
+
+  <p>Study these four ideas in order: (1) Transformer autoregressive generation and why it's sequential, (2) the draft-and-verify intuition, (3) modified rejection sampling and why the output distribution is unchanged, and (4) expected speedup analysis using &alpha; and &gamma;. With those four pieces, you also have the foundation for understanding Medusa, EAGLE, and SpecInfer.</p>
+
+</article>
+
+<div class="footer">
+  <p>A learning project by <a href="https://github.com/IrriDileepKumar">IrriDileepKumar</a></p>
+</div>
+
+<script>
+// ===== TIMING DEMO =====
+function updateTiming() {
+  const tokens = +document.getElementById('timing-tokens').value;
+  const draftMs = +document.getElementById('timing-draft').value;
+  const targetMs = +document.getElementById('timing-target').value;
+
+  document.getElementById('timing-tokens-val').textContent = tokens;
+  document.getElementById('timing-draft-val').textContent = draftMs;
+  document.getElementById('timing-target-val').textContent = targetMs;
+
+  const normalTime = tokens * targetMs;
+  const specTime = tokens * draftMs + targetMs;
+  const speedup = (normalTime / specTime).toFixed(1);
+  const maxW = 400;
+
+  const normalW = maxW;
+  const specW = Math.max(40, (specTime / normalTime) * maxW);
+
+  document.getElementById('timing-output').innerHTML = `
+    <div style="font-family:var(--sans); font-size:0.72rem; margin-bottom:8px; color:#666;">Normal autoregressive decoding</div>
+    <div class="speed-bar" style="width:${normalW}px; background:linear-gradient(90deg,#EF4444,#F87171);">${normalTime} ms</div>
+    <div style="font-family:var(--mono); font-size:0.6rem; color:#999; margin-bottom:16px;">${tokens} tokens &times; ${targetMs} ms each</div>
+
+    <div style="font-family:var(--sans); font-size:0.72rem; margin-bottom:8px; color:#666;">Speculative decoding (best case: all accepted)</div>
+    <div class="speed-bar" style="width:${specW}px; background:linear-gradient(90deg,#059669,#34D399);">${specTime} ms</div>
+    <div style="font-family:var(--mono); font-size:0.6rem; color:#999; margin-bottom:16px;">${tokens} draft &times; ${draftMs} ms + 1 verify &times; ${targetMs} ms</div>
+
+    <div style="font-family:var(--sans); font-size:1rem; font-weight:700; color:var(--brand); margin-top:8px;">${speedup}&times; speedup</div>
+  `;
+}
+
+document.getElementById('timing-tokens').addEventListener('input', updateTiming);
+document.getElementById('timing-draft').addEventListener('input', updateTiming);
+document.getElementById('timing-target').addEventListener('input', updateTiming);
+updateTiming();
+
+
+// ===== SPECULATIVE DECODING SIMULATOR =====
+const specWords = ['Once','upon','a','time','there','lived','a','dragon','in','the','mountains','who','loved','to','read'];
+const specPrompt = ['Once', 'upon', 'a'];
+
+function runSpecDecode() {
+  const gamma = 5;
+  const draft = specWords.slice(3, 3 + gamma);
+
+  // Random acceptance for each token
+  const acceptProbs = draft.map(() => 0.6 + Math.random() * 0.35);
+  const rolls = draft.map(() => Math.random());
+
+  let firstReject = -1;
+  for (let i = 0; i < gamma; i++) {
+    if (rolls[i] > acceptProbs[i]) {
+      firstReject = i;
+      break;
+    }
+  }
+
+  const alternatives = ['lived','saw','found','built','kept','made','heard'];
+  const corrected = alternatives[Math.floor(Math.random() * alternatives.length)];
+
+  let html = '';
+
+  // Prompt
+  html += `<div class="token-row"><span class="token-label">Prompt</span>`;
+  specPrompt.forEach(w => { html += `<span class="token-cell" style="background:#F3F4F6;color:#374151;font-weight:600;">${w}</span>`; });
+  html += `</div>`;
+
+  // Draft
+  html += `<div class="token-row"><span class="token-label">Draft</span>`;
+  draft.forEach((w, i) => {
+    const cls = firstReject === -1 || i < firstReject ? 'token-draft' :
+                i === firstReject ? 'token-rejected' : 'token-pending';
+    const icon = firstReject === -1 || i < firstReject ? '' :
+                 i === firstReject ? ' <span class="status-icon">&#x2717;</span>' : '';
+    html += `<span class="token-cell ${cls}">${w}${icon}</span>`;
+  });
+  html += `</div>`;
+
+  // Verification
+  html += `<div class="token-row"><span class="token-label">Verified</span>`;
+  draft.forEach((w, i) => {
+    if (firstReject === -1 || i < firstReject) {
+      const ap = (acceptProbs[i] * 100).toFixed(0);
+      html += `<span class="token-cell token-accepted">${w} <span class="status-icon">&#x2713;</span><br><span style="font-size:0.55rem;opacity:0.7;">${ap}%</span></span>`;
+    } else if (i === firstReject) {
+      html += `<span class="token-cell token-rejected">${w} <span class="status-icon">&#x2717;</span></span>`;
+    } else {
+      html += `<span class="token-cell token-pending" style="opacity:0.4; text-decoration:line-through;">${w}</span>`;
+    }
+  });
+  html += `</div>`;
+
+  // Result
+  html += `<div class="token-row" style="margin-top:12px;"><span class="token-label">Result</span>`;
+  specPrompt.forEach(w => { html += `<span class="token-cell" style="background:#F3F4F6;color:#374151;">${w}</span>`; });
+
+  if (firstReject === -1) {
+    draft.forEach(w => { html += `<span class="token-cell token-accepted">${w}</span>`; });
+    html += `</div>`;
+    html += `<div style="font-family:var(--sans); font-size:0.78rem; margin-top:12px; color:#059669; font-weight:600;">All ${gamma} tokens accepted! ${gamma} tokens for 1 target pass.</div>`;
+  } else {
+    for (let i = 0; i < firstReject; i++) {
+      html += `<span class="token-cell token-accepted">${draft[i]}</span>`;
+    }
+    html += `<span class="token-cell token-corrected">${corrected} <span style="font-size:0.55rem;">&#x2190; corrected</span></span>`;
+    html += `</div>`;
+    const accepted = firstReject;
+    html += `<div style="font-family:var(--sans); font-size:0.78rem; margin-top:12px; color:var(--brand); font-weight:600;">${accepted} token${accepted !== 1 ? 's' : ''} accepted + 1 corrected = ${accepted + 1} tokens from 1 target pass.</div>`;
+  }
+
+  document.getElementById('spec-output').innerHTML = html;
+}
+
+function resetSpecDecode() {
+  document.getElementById('spec-output').innerHTML = `<div style="font-family:var(--sans); font-size:0.75rem; color:#999; padding:20px 0; text-align:center;">Press "Run Speculation" to see the algorithm in action</div>`;
+}
+
+
+// ===== ACCEPTANCE PROBABILITY DEMO =====
+function updateAcceptance() {
+  const p = +document.getElementById('acc-p').value / 100;
+  const q = +document.getElementById('acc-q').value / 100;
+
+  document.getElementById('acc-p-val').textContent = p.toFixed(2);
+  document.getElementById('acc-q-val').textContent = q.toFixed(2);
+
+  const accept = Math.min(1, p / q);
+  const pct = (accept * 100).toFixed(1);
+  const barColor = accept >= 0.9 ? '#059669' : accept >= 0.5 ? '#D97706' : '#EF4444';
+
+  document.getElementById('accept-output').innerHTML = `
+    <div style="font-family:var(--mono); font-size:0.75rem; margin-bottom:8px;">
+      min(1, ${p.toFixed(2)} / ${q.toFixed(2)}) = <strong style="color:${barColor}; font-size:0.9rem;">${accept.toFixed(3)}</strong>
+    </div>
+    <div class="prob-bar-track" style="max-width:300px;">
+      <div class="prob-bar-fill" style="width:${pct}%; background:${barColor};"></div>
+    </div>
+    <div style="font-family:var(--sans); font-size:0.72rem; margin-top:6px; color:#666;">
+      Token accepted <strong>${pct}%</strong> of the time.
+      ${accept >= 1 ? ' Draft underestimates target &mdash; always accepted!' : ''}
+    </div>
+  `;
+}
+
+document.getElementById('acc-p').addEventListener('input', updateAcceptance);
+document.getElementById('acc-q').addEventListener('input', updateAcceptance);
+updateAcceptance();
+
+
+// ===== RESIDUAL DISTRIBUTION DEMO =====
+function updateResidual() {
+  const p = [+document.getElementById('res-p1').value, +document.getElementById('res-p2').value, +document.getElementById('res-p3').value];
+  const q = [+document.getElementById('res-q1').value, +document.getElementById('res-q2').value, +document.getElementById('res-q3').value];
+  const names = ['Paris', 'London', 'Rome'];
+
+  const pNorm = p.map(v => v / (p[0] + p[1] + p[2]) || 0);
+  const qNorm = q.map(v => v / (q[0] + q[1] + q[2]) || 0);
+
+  const residual = pNorm.map((pi, i) => Math.max(pi - qNorm[i], 0));
+  const residualSum = residual.reduce((a, b) => a + b, 0);
+  const residualNorm = residualSum > 0 ? residual.map(r => r / residualSum) : residual;
+
+  let html = `<div style="font-family:var(--mono); font-size:0.68rem; line-height:2.2;">`;
+  html += `<div style="display:grid; grid-template-columns:60px 80px 80px 100px 80px; gap:4px; font-weight:600; margin-bottom:4px;">
+    <span>Token</span><span>p(x)</span><span>q(x)</span><span>max(p-q, 0)</span><span>Residual</span>
+  </div>`;
+
+  names.forEach((name, i) => {
+    const res = residual[i].toFixed(3);
+    const norm = residualSum > 0 ? (residualNorm[i] * 100).toFixed(1) + '%' : '&mdash;';
+    html += `<div style="display:grid; grid-template-columns:60px 80px 80px 100px 80px; gap:4px;">
+      <span>${name}</span><span>${pNorm[i].toFixed(2)}</span><span>${qNorm[i].toFixed(2)}</span><span>${res}</span><span style="font-weight:600; color:var(--brand);">${norm}</span>
+    </div>`;
+  });
+
+  html += `</div>`;
+
+  // Visual bars
+  html += `<div style="margin-top:16px;">`;
+  names.forEach((name, i) => {
+    const w = residualSum > 0 ? residualNorm[i] * 250 : 0;
+    html += `<div style="display:flex; align-items:center; gap:8px; margin:4px 0;">
+      <span style="font-family:var(--sans); font-size:0.68rem; min-width:50px; text-align:right;">${name}</span>
+      <div class="prob-bar-track" style="flex:1; max-width:250px;">
+        <div class="prob-bar-fill" style="width:${w}px; background:var(--brand);"></div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  document.getElementById('residual-output').innerHTML = html;
+}
+updateResidual();
+
+
+// ===== SPEEDUP CALCULATOR =====
+function updateSpeedup() {
+  const alpha = +document.getElementById('su-alpha').value / 100;
+  const gamma = +document.getElementById('su-gamma').value;
+
+  document.getElementById('su-alpha-val').textContent = alpha.toFixed(2);
+  document.getElementById('su-gamma-val').textContent = gamma;
+
+  let expected = 0;
+  let terms = [];
+  for (let i = 0; i <= gamma; i++) {
+    const val = Math.pow(alpha, i);
+    expected += val;
+    if (i <= 5) terms.push(alpha === 1 ? '1' : `${alpha.toFixed(2)}^${i}`);
+  }
+  if (gamma > 5) terms.push('...');
+
+  let html = `<div style="font-family:var(--mono); font-size:0.7rem; margin-bottom:12px;">`;
+  html += `Expected = ${terms.join(' + ')} = <strong style="font-size:0.9rem; color:var(--brand);">${expected.toFixed(2)}</strong> tokens per target pass`;
+  html += `</div>`;
+
+  // Visual bars for different alphas
+  html += `<div style="margin-top:12px;">`;
+  const alphas = [0.5, 0.7, 0.8, 0.9, 0.95];
+  alphas.forEach(a => {
+    let exp = 0;
+    for (let i = 0; i <= gamma; i++) exp += Math.pow(a, i);
+    const w = (exp / (gamma + 1)) * 300;
+    const highlight = Math.abs(a - alpha) < 0.01;
+    html += `<div style="display:flex; align-items:center; gap:8px; margin:3px 0; ${highlight ? 'font-weight:700;' : ''}">
+      <span style="font-family:var(--mono); font-size:0.62rem; min-width:50px; text-align:right;">&alpha;=${a.toFixed(2)}</span>
+      <div class="prob-bar-track" style="flex:1; max-width:300px;">
+        <div class="prob-bar-fill" style="width:${w}px; background:${highlight ? 'var(--brand)' : '#CBD5E1'};"></div>
+      </div>
+      <span style="font-family:var(--mono); font-size:0.62rem;">${exp.toFixed(1)} tokens</span>
+    </div>`;
+  });
+  html += `</div>`;
+
+  document.getElementById('speedup-output').innerHTML = html;
+}
+updateSpeedup();
+</script>
+
+</body>
+</html>
