@@ -152,6 +152,10 @@ h1 {
 }
 
 /* Individual card gradients */
+.card--inference-engine .card-hero {
+  background: linear-gradient(135deg, #09090B 0%, #18181B 30%, #16A34A 72%, #4ADE80 100%);
+}
+
 .card--speculative .card-hero {
   background: linear-gradient(135deg, #92400E 0%, #D97706 35%, #F59E0B 70%, #FDE68A 100%);
 }
@@ -252,6 +256,16 @@ h1 {
   </div>
 
   <div class="cards">
+
+    <a class="card card--inference-engine" href="inference-engine/index.html">
+      <div class="card-hero">
+        <h2>Performance Metrics, In Depth</h2>
+      </div>
+      <div class="card-body">
+        <p>Part I of Inside the Inference Engine &mdash; a systems course on LLM serving. TTFT, latency vs. throughput, Little's Law, and the vocabulary every later optimization is measured against.</p>
+        <div class="card-date">Aug 27, 2026</div>
+      </div>
+    </a>
 
     <a class="card card--speculative" href="speculative-decoding/index.html">
       <div class="card-hero">

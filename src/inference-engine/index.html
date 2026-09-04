@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Performance Metrics, In Depth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..800;1,6..72,300..800&family=Figtree:wght@300..900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { font-size: 21px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+    body {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 1rem;
+      line-height: 1.55;
+      color: #2d2d2d;
+      background-color: #faf9f7;
+    }
+
+    :root {
+      --serif: 'Newsreader', Georgia, serif;
+      --sans: 'Figtree', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+      --bg: #faf9f7;
+      --text: #2d2d2d;
+      --brand: #16A34A;
+      --brand-light: #4ADE80;
+      --accent: #0EA5E9;
+      --border: #E5E5E0;
+      --widget-bg: #F0FDF4;
+      --content-width: 700px;
+      --content-padding: 45px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 20px 32px;
+      font-family: var(--sans);
+    }
+    .logo { font-weight: 800; font-size: 0.75rem; text-decoration: none; color: var(--text); line-height: 1.1; }
+    .logo-secondary { font-style: italic; font-weight: 400; color: #666; }
+
+    .post-header {
+      max-width: 960px;
+      margin: 0 auto 20px;
+      border-radius: 18px;
+      overflow: hidden;
+      position: relative;
+      min-height: 280px;
+      display: flex;
+      align-items: flex-end;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .header__bg {
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #09090B 0%, #18181B 30%, #16A34A 72%, #4ADE80 100%);
+      z-index: 0;
+    }
+    .header__overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.05) 100%);
+      z-index: 1;
+    }
+    .header__text { position: relative; z-index: 2; padding: 44px 52px; color: white; }
+    .header__eyebrow { font-family: var(--sans); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; opacity: 0.75; margin-bottom: 10px; }
+    .post-title { font-family: var(--sans); font-size: 2.8rem; font-weight: 800; line-height: 1.1; margin-bottom: 10px; letter-spacing: -0.02em; }
+    .post-subtitle { font-family: var(--sans); font-size: 1.1rem; font-weight: 400; opacity: 0.85; line-height: 1.35; }
+
+    .series-nav {
+      max-width: 960px;
+      margin: 0 auto 28px;
+      padding: 0 var(--content-padding);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .series-chip {
+      font-family: var(--sans);
+      font-size: 0.66rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 20px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .series-chip.active { background: var(--brand); color: white; }
+    .series-chip.soon { background: #F4F4F5; color: #A1A1AA; }
+
+    .nutshell {
+      max-width: var(--content-width);
+      margin: 0 auto 28px;
+      padding: 0 var(--content-padding);
+      font-style: italic;
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: #555;
+    }
+    .nutshell a { color: var(--brand); font-weight: 600; font-style: normal; }
+
+    hr.full-width { border: none; border-top: 1px solid var(--border); margin: 32px auto; max-width: 960px; }
+
+    article {
+      max-width: var(--content-width);
+      margin: 0 auto;
+      padding: 0 var(--content-padding);
+      border-left: 2px solid var(--border);
+    }
+
+    .toc-wrapper {
+      margin: 36px 0 52px;
+      padding: 28px 32px;
+      background: white;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.03);
+    }
+    .toc-wrapper h4 { font-family: var(--sans); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; color: var(--brand); }
+    .toc ol { list-style: none; counter-reset: toc-counter; }
+    .toc ol li { counter-increment: toc-counter; padding: 5px 0; font-family: var(--sans); font-size: 0.8rem; transition: padding-left 0.2s; display: flex; align-items: baseline; gap: 8px; }
+    .toc ol li:hover { padding-left: 6px; }
+    .toc ol li::before { content: counter(toc-counter, upper-roman) "."; display: inline-block; width: 40px; font-weight: 500; color: var(--brand-light); flex-shrink: 0; }
+    .toc a { color: var(--text); text-decoration: none; transition: color 0.2s; }
+    .toc a:hover { color: var(--brand); }
+    .toc-soon { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #C4C4C4; background: #F8F8F6; padding: 2px 7px; border-radius: 8px; }
+
+    .section-heading {
+      display: flex; align-items: center; gap: 18px;
+      margin: 80px -60px 36px -60px;
+      padding: 20px 0;
+      border-top: 2px solid var(--border);
+      border-bottom: 2px solid var(--border);
+      background: var(--bg);
+    }
+    .section-number { font-family: var(--sans); font-size: 1.8rem; font-weight: 300; color: var(--brand-light); min-width: 60px; text-align: right; opacity: 0.6; }
+    .section-heading h2 { font-family: var(--serif); font-size: 1.6rem; font-weight: 700; color: var(--text); line-height: 1.2; }
+
+    p { margin-bottom: 1rem; }
+    h3 { font-family: var(--serif); font-size: 1.2rem; font-weight: 600; margin: 2rem 0 0.8rem; }
+    h4 { font-family: var(--sans); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--brand); margin: 1.6rem 0 0.6rem; }
+    ol, ul { margin: 0 0 1rem 1.2rem; }
+    li { margin-bottom: 0.3rem; }
+    strong { font-weight: 600; }
+    a { color: var(--brand); }
+    code { font-family: var(--mono); font-size: 0.82em; background: #F5F5F0; padding: 2px 6px; border-radius: 4px; }
+
+    .figure-container {
+      margin: 28px -24px;
+      padding: 24px 28px;
+      background: white;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .widget-label { font-family: var(--sans); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--brand); margin-bottom: 4px; }
+    .figure-caption { margin-top: 12px; font-family: var(--sans); font-size: 0.68rem; color: #aaa; text-align: center; line-height: 1.4; }
+
+    .math-block {
+      background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+      border-left: 4px solid var(--brand);
+      border-radius: 0 12px 12px 0;
+      padding: 20px 24px;
+      margin: 24px 0;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      line-height: 1.9;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      color: #1E293B;
+    }
+
+    .pipeline-box {
+      background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+      color: #E2E8F0;
+      border: none;
+      border-radius: 12px;
+      padding: 28px 32px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      line-height: 2;
+      margin: 24px 0;
+      overflow-x: auto;
+      white-space: pre;
+      text-align: left;
+    }
+
+    .sidenote {
+      background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 10px 10px 0;
+      padding: 18px 22px;
+      margin: 24px 0;
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: #555;
+    }
+    .sidenote strong { display: block; margin-bottom: 6px; color: var(--accent); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .misconception {
+      background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
+      border-left: 3px solid #EF4444;
+      border-radius: 0 10px 10px 0;
+      padding: 18px 22px;
+      margin: 24px 0;
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: #555;
+    }
+    .misconception strong { display: block; margin-bottom: 6px; color: #DC2626; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .stub {
+      padding: 22px 26px;
+      background: #FAFAF9;
+      border: 1px dashed #D4D4D4;
+      border-radius: 12px;
+      font-family: var(--sans);
+      font-size: 0.8rem;
+      color: #888;
+      line-height: 1.6;
+    }
+    .stub strong { color: #666; }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      margin: 20px 0;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    table.data-table th, table.data-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      text-align: left;
+    }
+    table.data-table th { background: #F8FAFC; font-weight: 700; color: #475569; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    table.data-table tr:last-child td { border-bottom: none; }
+    table.data-table tr:hover td { background: #FAFAFA; }
+
+    .toggle-btn {
+      padding: 8px 16px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      font-family: var(--sans);
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 500;
+    }
+    .toggle-btn:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(22,163,74,0.12); }
+    .toggle-btn.active { background: linear-gradient(135deg, var(--brand), var(--brand-light)); color: white; border-color: transparent; box-shadow: 0 2px 8px rgba(22,163,74,0.25); }
+
+    .footer {
+      max-width: var(--content-width);
+      margin: 72px auto 0;
+      padding: 28px var(--content-padding) 64px;
+      border-top: 1px solid var(--border);
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      color: #aaa;
+      text-align: center;
+    }
+    .footer a { color: var(--brand); text-decoration: none; font-weight: 500; }
+    .footer a:hover { text-decoration: underline; }
+
+    .demo-controls {
+      display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0;
+      font-family: var(--sans); font-size: 0.78rem;
+    }
+    .demo-controls label { display: flex; align-items: center; gap: 6px; }
+
+    .prob-bar-track {
+      height: 20px;
+      background: #F3F4F6;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .prob-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+
+    @media (max-width: 700px) {
+      html { font-size: 18px; }
+      .post-title { font-size: 1.8rem; }
+      .header__text { padding: 24px; }
+      article { padding: 0 18px; }
+      .section-heading { margin-left: -18px; margin-right: -18px; padding: 12px 8px; }
+      .figure-container { margin: 16px -10px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="../index.html">Interactive Explainers<br><span class="logo-secondary">Learning by playing</span></a>
+</nav>
+
+<header class="post-header">
+  <div class="header__bg"></div>
+  <div class="header__overlay"></div>
+  <div class="header__text">
+    <div class="header__eyebrow">Inside the Inference Engine &middot; Part I</div>
+    <h1 class="post-title">Performance Metrics, In Depth</h1>
+    <h2 class="post-subtitle">Before tokenization, scheduling, or batching make sense, you need the vocabulary inference engineers actually measure against.</h2>
+  </div>
+</header>
+
+<div class="series-nav">
+  <a class="series-chip active" href="#sec-what-is">I. What Is Inference Performance?</a>
+  <a class="series-chip soon" href="#sec-user-metrics">II. User-Facing Metrics</a>
+  <a class="series-chip soon" href="#sec-token-metrics">III. Token Generation Metrics</a>
+  <a class="series-chip soon" href="#sec-gpu-metrics">IV. GPU Metrics</a>
+  <a class="series-chip soon" href="#sec-scheduler-metrics">V. Scheduler Metrics</a>
+  <a class="series-chip soon" href="#sec-memory-metrics">VI. Memory Metrics</a>
+  <a class="series-chip soon" href="#sec-production-metrics">VII. Production Metrics</a>
+  <a class="series-chip soon" href="#sec-timeline">VIII. The End-to-End Timeline</a>
+</div>
+
+<div class="nutshell">
+  This is Part I of <strong>Inside the Inference Engine</strong> &mdash; a systems course on how LLM serving actually works, built the way inference engineers at OpenAI, Anthropic, Google, vLLM, NVIDIA, and AMD think about it. They don't start by asking how tokenization works. They ask: <em>how do we measure whether our inference system is good?</em> Everything else &mdash; FlashAttention, PagedAttention, continuous batching, speculative decoding, prefix caching &mdash; is an optimization toward one of the metrics we're about to define. This chapter builds the foundation; later chapters go deep on each metric family, with formulas, real logs, and production case studies.
+</div>
+
+<hr class="full-width">
+
+<article>
+
+  <!-- TABLE OF CONTENTS -->
+  <div class="toc-wrapper">
+    <h4>Part I &mdash; Contents</h4>
+    <div class="toc">
+      <ol>
+        <li><a href="#sec-what-is">What Is LLM Inference Performance?</a></li>
+        <li><a href="#sec-user-metrics">User-Facing Metrics <span class="toc-soon">next</span></a></li>
+        <li><a href="#sec-token-metrics">Token Generation Metrics <span class="toc-soon">soon</span></a></li>
+        <li><a href="#sec-gpu-metrics">GPU Metrics <span class="toc-soon">soon</span></a></li>
+        <li><a href="#sec-scheduler-metrics">Scheduler Metrics <span class="toc-soon">soon</span></a></li>
+        <li><a href="#sec-memory-metrics">Memory Metrics <span class="toc-soon">soon</span></a></li>
+        <li><a href="#sec-production-metrics">Production Metrics <span class="toc-soon">soon</span></a></li>
+        <li><a href="#sec-timeline">The End-to-End Timeline <span class="toc-soon">soon</span></a></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- CHAPTER 1: WHAT IS LLM INFERENCE PERFORMANCE -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-what-is">
+    <span class="section-number">I.</span>
+    <h2>What Is LLM Inference Performance?</h2>
+  </div>
+
+  <p>"Performance" is not one number. It's a bundle of trade-offs, and which one you optimize for depends entirely on who's waiting and why. Before we can define TTFT or tokens/sec precisely, we need four pieces of framing: why inference is a fundamentally different problem than training, the split between online and offline serving, the tension between latency and throughput, and the split between what the user feels and what the infrastructure reports.</p>
+
+  <h3>1.1 &mdash; Why Inference Is a Different Problem Than Training</h3>
+
+  <p>During training, the entire target sequence is already known. This is <strong>teacher forcing</strong>: the model is shown the true previous tokens at every position simultaneously, so a whole sequence of length <em>N</em> can be processed in a <em>single</em> forward pass, with every position computed in parallel. Nobody is waiting on any individual step &mdash; the only thing that matters is total throughput across a cluster of GPUs over days or weeks.</p>
+
+  <div class="pipeline-box">TRAINING (teacher forcing &mdash; sequence is known in advance)
+
+  [tok1 tok2 tok3 tok4 tok5] &rarr; one forward pass &rarr; loss on all 5 positions at once
+  Objective: maximize tokens processed per GPU-hour across the whole cluster
+  Metric:    MFU (Model FLOPs Utilization), tokens/sec/GPU aggregated
+  Who waits: nobody, in real time
+
+INFERENCE (autoregressive &mdash; sequence doesn't exist yet)
+
+  [prompt] &rarr; forward pass &rarr; tok1
+  [prompt, tok1] &rarr; forward pass &rarr; tok2
+  [prompt, tok1, tok2] &rarr; forward pass &rarr; tok3
+  ...
+  Objective: balance latency for the human on the other end against cost per request
+  Metric:    TTFT, tokens/sec per-request, p99 latency
+  Who waits: a person, or a system blocking on a person</div>
+
+  <p>At inference time the target sequence doesn't exist yet &mdash; the model has to invent it one token at a time, and each new token depends on every token generated before it. That causal dependency is structural, not a current-technology limitation: you cannot compute token <em>t+1</em> before you know token <em>t</em>, because token <em>t</em> is literally part of the input to the step that produces <em>t+1</em>. This is why decoding is sequential by default, and it's the single fact that most of this course traces back to.</p>
+
+  <table class="data-table">
+    <tr><th>&nbsp;</th><th>Training</th><th>Inference</th></tr>
+    <tr><td>Sequence</td><td>Fully known in advance</td><td>Generated one token at a time</td></tr>
+    <tr><td>Parallelism</td><td>Across the whole sequence, per step</td><td>Across the batch only; sequence is serial</td></tr>
+    <tr><td>Objective</td><td>Maximize aggregate throughput</td><td>Balance latency, throughput, and cost</td></tr>
+    <tr><td>Who's waiting</td><td>No one, in real time</td><td>Often a human, synchronously</td></tr>
+    <tr><td>Failure mode</td><td>Slow epoch</td><td>A user staring at a spinner</td></tr>
+  </table>
+
+  <div class="sidenote">
+    <strong>Why this matters later</strong>
+    Because decoding is memory-bandwidth bound and strictly sequential, the GPU's compute units sit mostly idle during generation &mdash; the bottleneck is shuttling weights out of HBM, not doing math. That idle compute is exactly what <a href="../speculative-decoding/index.html">speculative decoding</a> exploits: verify several guessed tokens in one pass instead of generating one token per pass. You'll see this "memory-bound vs. compute-bound" distinction again, formally, in Chapter IV.
+  </div>
+
+  <h3>1.2 &mdash; Online vs. Offline Inference</h3>
+
+  <p>Not all inference workloads have the same shape. The single biggest fork in how you design a serving system is whether a human (or a latency-sensitive system) is waiting <em>right now</em>.</p>
+
+  <table class="data-table">
+    <tr><th>&nbsp;</th><th>Online (interactive)</th><th>Offline (batch)</th></tr>
+    <tr><td>Example</td><td>Chat UI, API endpoint, code-completion</td><td>Corpus embedding, nightly eval run, synthetic data generation</td></tr>
+    <tr><td>Arrival pattern</td><td>Unpredictable, bursty, concurrent</td><td>Whole workload known up front</td></tr>
+    <tr><td>Primary metric</td><td>TTFT, p95/p99 latency</td><td>Total throughput, cost per token</td></tr>
+    <tr><td>Batching</td><td>Continuous batching, admission control</td><td>Large static batches, no urgency</td></tr>
+    <tr><td>Typical tooling</td><td>vLLM / TGI / TensorRT-LLM server mode</td><td><code>LLM.generate()</code>-style batch API</td></tr>
+  </table>
+
+  <p>Same GPUs, same model weights &mdash; but the scheduling policy that's optimal for one is actively bad for the other. An offline job can wait to accumulate a batch of 256 requests before running a single giant forward pass, because nothing is time-sensitive. Do that to an online chat endpoint and the first user in the queue waits for 255 strangers' requests to arrive before seeing a single token.</p>
+
+  <div class="misconception">
+    <strong>Common misconception</strong>
+    "Just maximize GPU utilization" is offline-inference thinking applied to an online-inference problem. An online server can hit 100% GPU utilization while still delivering terrible TTFT, if it's achieving that utilization by making every new request wait behind a large batch already in flight. Utilization and user-perceived speed are different axes &mdash; more in 1.3 and 1.4.
+  </div>
+
+  <h3>1.3 &mdash; Latency vs. Throughput</h3>
+
+  <p><strong>Latency</strong> is how long one unit of work takes to complete &mdash; one request, or one component of it. <strong>Throughput</strong> is how many units of work the whole system completes per unit of time. They sound like they should move together, and below a system's saturation point they do: better scheduling can improve both for free. Past saturation, they trade off directly against each other, governed by batching.</p>
+
+  <div class="math-block">Latency(request)   = time for that one request to finish
+Throughput(system) = total requests (or tokens) completed / time
+
+Batching links them:
+  larger batch &rarr; GPU processes more work per forward pass &rarr; throughput &uarr;
+  larger batch &rarr; each request waits for more co-batched work &rarr; latency &uarr;</div>
+
+  <p>The formal tool inference engineers reach for here is <strong>Little's Law</strong>, borrowed straight from queueing theory: in steady state, the average number of requests <em>in the system</em> equals the arrival rate times the average time each request spends in the system.</p>
+
+  <div class="math-block">L = &lambda; &times; W
+
+  L = average number of requests in flight (concurrency)
+  &lambda; = arrival rate (requests / second)
+  W = average time each request spends in the system (seconds)</div>
+
+  <p>This one identity is why "just add more concurrency" isn't free: for a fixed arrival rate, more in-flight concurrency <em>necessarily</em> means longer average time-in-system, because <em>L</em> and <em>W</em> are locked together by <em>&lambda;</em>. Try it below.</p>
+
+  <!-- INTERACTIVE: Little's Law calculator -->
+  <div class="figure-container" id="littles-law-demo">
+    <div class="widget-label">Interactive &mdash; Little's Law</div>
+    <div class="demo-controls">
+      <label>Arrival rate &lambda; (req/s): <input type="range" id="ll-lambda" min="1" max="50" value="10" style="vertical-align:middle;"> <span id="ll-lambda-val">10</span></label>
+      <label>Avg. time in system W (ms): <input type="range" id="ll-w" min="50" max="2000" value="400" step="10" style="vertical-align:middle;"> <span id="ll-w-val">400</span></label>
+    </div>
+    <div id="ll-output" style="margin-top:16px;"></div>
+    <div class="figure-caption">Concurrency L = &lambda; &times; W. To hold W (latency) steady while &lambda; (traffic) rises, the system must support proportionally more concurrent in-flight requests &mdash; which is exactly what continuous batching and enough KV-cache memory are for.</div>
+  </div>
+
+  <p>Now the batching side. The chart below uses a simplified, illustrative cost model &mdash; a batch of size <em>B</em> takes roughly a fixed weight-loading cost plus a small per-request increment, because at low batch sizes the GPU is memory-bound and extra requests are nearly free to compute (the real, physically-grounded version of this curve is Chapter IV's territory). Even this simplified model shows the shape that matters: throughput keeps climbing well past the point where per-request latency starts to hurt.</p>
+
+  <!-- INTERACTIVE: Batch size explorer -->
+  <div class="figure-container" id="batch-demo">
+    <div class="widget-label">Interactive &mdash; Batch Size Explorer (illustrative model)</div>
+    <div class="demo-controls">
+      <label>Batch size B: <input type="range" id="bs-b" min="1" max="64" value="8" style="vertical-align:middle;"> <span id="bs-b-val">8</span></label>
+    </div>
+    <div id="bs-output" style="margin-top:16px;"></div>
+    <div class="figure-caption">batch_time_ms &asymp; 40 + 0.6&times;B &mdash; loading weights from HBM dominates, so extra co-batched requests are cheap until the batch gets large. throughput = B / batch_time. latency experienced &asymp; batch_time (static batching, whole batch finishes together).</div>
+  </div>
+
+  <div class="sidenote">
+    <strong>How real benchmarks report this</strong>
+    This is why vLLM, TGI, and TensorRT-LLM benchmark reports don't publish a single "tokens/sec" number &mdash; they publish a <em>throughput-vs-latency curve</em>, or "throughput at a fixed p99 SLA." A number like "12,000 tok/s" is meaningless without knowing what latency it was achieved at and how big a batch produced it.
+  </div>
+
+  <h3>1.4 &mdash; User-Facing Metrics vs. Infrastructure Metrics</h3>
+
+  <p>Every inference metric belongs to one of two audiences, and the two audiences sometimes want opposite things.</p>
+
+  <table class="data-table">
+    <tr><th>User-facing (what the human feels)</th><th>Infrastructure-facing (what the platform reports)</th></tr>
+    <tr><td>TTFT &mdash; Time To First Token</td><td>GPU utilization / SM occupancy</td></tr>
+    <tr><td>ITL / TPOT &mdash; inter-token latency</td><td>Aggregate tokens/sec across all requests</td></tr>
+    <tr><td>TTLT &mdash; Time To Last Token</td><td>Cost per 1M tokens</td></tr>
+    <tr><td>Perceived streaming smoothness</td><td>Queue depth, request/sec (RPS)</td></tr>
+  </table>
+
+  <p>The tension: maximizing the right-hand column by cranking batch size (more requests co-batched &rarr; higher GPU utilization, higher aggregate tok/s, lower cost/token) directly degrades the left-hand column for any individual request now waiting behind a bigger batch. Chapter V (Scheduler Metrics) is essentially an entire chapter about the machinery &mdash; continuous batching, chief among it &mdash; built specifically to resolve this tension instead of just picking a side.</p>
+
+  <div class="sidenote">
+    <strong>Why a slower model can feel faster</strong>
+    A model with lower raw tokens/sec but a much lower TTFT can feel snappier than a faster model that makes you wait longer before the first word appears &mdash; because humans perceive <em>time to first response</em> far more acutely than steady-state generation speed. We'll make this precise with real numbers in Chapter II.
+  </div>
+
+  <h4>Recap</h4>
+  <p>Four ideas, and everything else in this course hangs off them: (1) inference is sequential and latency-sensitive in a way training never is, because the sequence doesn't exist yet and a human is often waiting; (2) online and offline workloads want opposite scheduling policies on the same hardware; (3) latency and throughput are linked by batching and formalized by Little's Law &mdash; concurrency, arrival rate, and time-in-system can't move independently; (4) every metric serves either the user or the infrastructure, and the two can conflict.</p>
+
+  <p><strong>Next: Chapter II</strong> opens up the user-facing metrics in full &mdash; formal definitions, the exact formula behind TTFT (queue wait + tokenization + scheduling + prefill + first decode + network transfer), why KV cache doesn't help your first request but helps every request after it, and why TTFT is usually the metric that determines whether a product "feels fast."</p>
+
+  <!-- ============================================ -->
+  <!-- CHAPTER 2 STUB -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-user-metrics">
+    <span class="section-number">II.</span>
+    <h2>User-Facing Metrics</h2>
+  </div>
+  <div class="stub"><strong>Coming next.</strong> TTFT, TTLT, latency, response time, streaming latency, and perceived latency &mdash; each with a formal definition, its formula, and a worked example (TTFT = 250ms, generation speed = 120 tok/s, 400 output tokens &rarr; where does the total response time actually go?).</div>
+
+  <!-- ============================================ -->
+  <!-- CHAPTER 3 STUB -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-token-metrics">
+    <span class="section-number">III.</span>
+    <h2>Token Generation Metrics</h2>
+  </div>
+  <div class="stub"><strong>Coming soon.</strong> Tokens/sec, decode throughput, prefill throughput, effective throughput, aggregate throughput, and concurrent throughput &mdash; and why conflating them is the most common source of confusion in benchmark reports.</div>
+
+  <!-- ============================================ -->
+  <!-- CHAPTER 4 STUB -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-gpu-metrics">
+    <span class="section-number">IV.</span>
+    <h2>GPU Metrics</h2>
+  </div>
+  <div class="stub"><strong>Coming soon.</strong> GPU utilization, SM occupancy, memory bandwidth, HBM utilization, FLOPs utilization, and the compute-bound vs. memory-bound distinction that explains <em>why</em> performance changes the way it does.</div>
+
+  <!-- ============================================ -->
+  <!-- CHAPTER 5 STUB -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-scheduler-metrics">
+    <span class="section-number">V.</span>
+    <h2>Scheduler Metrics</h2>
+  </div>
+  <div class="stub"><strong>Coming soon.</strong> Queue wait time, batch size, continuous batching efficiency, KV cache hit rate, cache reuse ratio, and batch occupancy.</div>
+
+  <!-- ============================================ -->
+  <!-- CHAPTER 6 STUB -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-memory-metrics">
+    <span class="section-number">VI.</span>
+    <h2>Memory Metrics</h2>
+  </div>
+  <div class="stub"><strong>Coming soon.</strong> KV cache size, memory fragmentation, PagedAttention efficiency, cache residency, eviction rate, and prefix cache hit rate.</div>
+
+  <!-- ============================================ -->
+  <!-- CHAPTER 7 STUB -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-production-metrics">
+    <span class="section-number">VII.</span>
+    <h2>Production Metrics</h2>
+  </div>
+  <div class="stub"><strong>Coming soon.</strong> The dashboard numbers: p50/p95/p99 latency, error rate, RPS, TPS, cost/token, GPU utilization, and queue depth.</div>
+
+  <!-- ============================================ -->
+  <!-- CHAPTER 8 STUB -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-timeline">
+    <span class="section-number">VIII.</span>
+    <h2>The End-to-End Timeline</h2>
+  </div>
+  <div class="stub"><strong>Coming soon.</strong> The full request timeline &mdash; queue wait, tokenization, scheduling, prefill, TTFT, decode, streaming, TTLT &mdash; with every optimization from this course (FlashAttention, PagedAttention, continuous batching, speculative decoding, prefix caching) mapped onto the exact metric it improves.</div>
+
+</article>
+
+<div class="footer">
+  <p>A learning project by <a href="https://github.com/IrriDileepKumar">IrriDileepKumar</a></p>
+</div>
+
+<script>
+// ===== LITTLE'S LAW DEMO =====
+function updateLittlesLaw() {
+  const lambda = +document.getElementById('ll-lambda').value;
+  const wMs = +document.getElementById('ll-w').value;
+
+  document.getElementById('ll-lambda-val').textContent = lambda;
+  document.getElementById('ll-w-val').textContent = wMs;
+
+  const wSec = wMs / 1000;
+  const L = lambda * wSec;
+
+  const dots = Math.round(L);
+  const maxDots = 50;
+  const shown = Math.min(dots, maxDots);
+  let dotsHtml = '';
+  for (let i = 0; i < shown; i++) {
+    dotsHtml += `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--brand);margin:2px;"></span>`;
+  }
+  if (dots > maxDots) dotsHtml += `<span style="font-family:var(--sans);font-size:0.65rem;color:#999;margin-left:6px;">+${dots - maxDots} more</span>`;
+
+  document.getElementById('ll-output').innerHTML = `
+    <div style="font-family:var(--mono); font-size:0.8rem; margin-bottom:12px;">
+      L = ${lambda} &times; ${wSec.toFixed(2)} = <strong style="font-size:1rem; color:var(--brand);">${L.toFixed(1)}</strong> concurrent requests
+    </div>
+    <div style="line-height:1.8;">${dotsHtml}</div>
+  `;
+}
+document.getElementById('ll-lambda').addEventListener('input', updateLittlesLaw);
+document.getElementById('ll-w').addEventListener('input', updateLittlesLaw);
+updateLittlesLaw();
+
+
+// ===== BATCH SIZE EXPLORER =====
+function batchTimeMs(B) { return 40 + 0.6 * B; }
+
+function updateBatchDemo() {
+  const B = +document.getElementById('bs-b').value;
+  document.getElementById('bs-b-val').textContent = B;
+
+  const t = batchTimeMs(B);
+  const throughput = B / (t / 1000);
+
+  let html = `<div style="font-family:var(--mono); font-size:0.78rem; margin-bottom:14px;">
+    batch_time = 40 + 0.6&times;${B} = <strong style="color:var(--brand);">${t.toFixed(1)} ms</strong>
+    &nbsp;&middot;&nbsp;
+    throughput = ${B}/${(t/1000).toFixed(3)}s = <strong style="color:var(--brand);">${throughput.toFixed(0)} req/s</strong>
+  </div>`;
+
+  html += `<div style="font-family:var(--sans); font-size:0.68rem; color:#666; margin-bottom:6px;">Per-request latency vs. batch size</div>`;
+  const samples = [1, 2, 4, 8, 16, 32, 64];
+  const maxT = batchTimeMs(64);
+  html += `<div style="margin-bottom:16px;">`;
+  samples.forEach(b => {
+    const tt = batchTimeMs(b);
+    const w = (tt / maxT) * 280;
+    const highlight = b === B;
+    html += `<div style="display:flex; align-items:center; gap:8px; margin:3px 0; ${highlight ? 'font-weight:700;' : ''}">
+      <span style="font-family:var(--mono); font-size:0.62rem; min-width:34px; text-align:right;">B=${b}</span>
+      <div class="prob-bar-track" style="flex:1; max-width:280px;">
+        <div class="prob-bar-fill" style="width:${w}px; background:${highlight ? '#EF4444' : '#FCA5A5'};"></div>
+      </div>
+      <span style="font-family:var(--mono); font-size:0.62rem;">${tt.toFixed(0)}ms</span>
+    </div>`;
+  });
+  html += `</div>`;
+
+  html += `<div style="font-family:var(--sans); font-size:0.68rem; color:#666; margin-bottom:6px;">Aggregate throughput vs. batch size</div>`;
+  const maxThroughput = 64 / (batchTimeMs(64) / 1000);
+  samples.forEach(b => {
+    const tp = b / (batchTimeMs(b) / 1000);
+    const w = (tp / maxThroughput) * 280;
+    const highlight = b === B;
+    html += `<div style="display:flex; align-items:center; gap:8px; margin:3px 0; ${highlight ? 'font-weight:700;' : ''}">
+      <span style="font-family:var(--mono); font-size:0.62rem; min-width:34px; text-align:right;">B=${b}</span>
+      <div class="prob-bar-track" style="flex:1; max-width:280px;">
+        <div class="prob-bar-fill" style="width:${w}px; background:${highlight ? 'var(--brand)' : '#BBF7D0'};"></div>
+      </div>
+      <span style="font-family:var(--mono); font-size:0.62rem;">${tp.toFixed(0)} req/s</span>
+    </div>`;
+  });
+
+  document.getElementById('bs-output').innerHTML = html;
+}
+document.getElementById('bs-b').addEventListener('input', updateBatchDemo);
+updateBatchDemo();
+</script>
+
+</body>
+</html>
