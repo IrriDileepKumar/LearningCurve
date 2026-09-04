@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Borrowing Another Model's Memory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..800;1,6..72,300..800&family=Figtree:wght@300..900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { font-size: 21px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+    body {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 1rem;
+      line-height: 1.55;
+      color: #2d2d2d;
+      background-color: #faf9f7;
+    }
+
+    :root {
+      --serif: 'Newsreader', Georgia, serif;
+      --sans: 'Figtree', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+      --bg: #faf9f7;
+      --text: #2d2d2d;
+      --brand: #2563EB;
+      --brand-light: #38BDF8;
+      --accent: #0D9488;
+      --border: #E5E5E0;
+      --widget-bg: #EFF6FF;
+      --content-width: 700px;
+      --content-padding: 45px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 20px 32px;
+      font-family: var(--sans);
+    }
+    .logo { font-weight: 800; font-size: 0.75rem; text-decoration: none; color: var(--text); line-height: 1.1; }
+    .logo-secondary { font-style: italic; font-weight: 400; color: #666; }
+
+    .post-header {
+      max-width: 960px;
+      margin: 0 auto 44px;
+      border-radius: 18px;
+      overflow: hidden;
+      position: relative;
+      min-height: 280px;
+      display: flex;
+      align-items: flex-end;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .header__bg {
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #134E4A 0%, #0D9488 35%, #2563EB 72%, #A5B4FC 100%);
+      z-index: 0;
+    }
+    .header__overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.05) 100%);
+      z-index: 1;
+    }
+    .header__text { position: relative; z-index: 2; padding: 44px 52px; color: white; }
+    .header__eyebrow { font-family: var(--sans); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; opacity: 0.75; margin-bottom: 10px; }
+    .post-title { font-family: var(--sans); font-size: 2.6rem; font-weight: 800; line-height: 1.1; margin-bottom: 10px; letter-spacing: -0.02em; }
+    .post-subtitle { font-family: var(--sans); font-size: 1.05rem; font-weight: 400; opacity: 0.85; line-height: 1.4; }
+
+    .nutshell {
+      max-width: var(--content-width);
+      margin: 0 auto 28px;
+      padding: 0 var(--content-padding);
+      font-style: italic;
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: #555;
+    }
+    .nutshell a { color: var(--brand); font-weight: 600; font-style: normal; }
+
+    hr.full-width { border: none; border-top: 1px solid var(--border); margin: 32px auto; max-width: 960px; }
+
+    article {
+      max-width: var(--content-width);
+      margin: 0 auto;
+      padding: 0 var(--content-padding);
+      border-left: 2px solid var(--border);
+    }
+
+    .toc-wrapper {
+      margin: 36px 0 52px;
+      padding: 28px 32px;
+      background: white;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.03);
+    }
+    .toc-wrapper h4 { font-family: var(--sans); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; color: var(--brand); }
+    .toc ol { list-style: none; counter-reset: toc-counter; }
+    .toc ol li { counter-increment: toc-counter; padding: 5px 0; font-family: var(--sans); font-size: 0.8rem; transition: padding-left 0.2s; }
+    .toc ol li:hover { padding-left: 6px; }
+    .toc ol li::before { content: counter(toc-counter, upper-roman) "."; display: inline-block; width: 40px; font-weight: 500; color: var(--brand-light); }
+    .toc a { color: var(--text); text-decoration: none; transition: color 0.2s; }
+    .toc a:hover { color: var(--brand); }
+
+    .section-heading {
+      display: flex; align-items: center; gap: 18px;
+      margin: 80px -60px 36px -60px;
+      padding: 20px 0;
+      border-top: 2px solid var(--border);
+      border-bottom: 2px solid var(--border);
+      background: var(--bg);
+    }
+    .section-number { font-family: var(--sans); font-size: 1.8rem; font-weight: 300; color: var(--brand-light); min-width: 60px; text-align: right; opacity: 0.6; }
+    .section-heading h2 { font-family: var(--serif); font-size: 1.6rem; font-weight: 700; color: var(--text); line-height: 1.2; }
+
+    p { margin-bottom: 1rem; }
+    h3 { font-family: var(--serif); font-size: 1.2rem; font-weight: 600; margin: 2rem 0 0.8rem; }
+    h4 { font-family: var(--sans); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--brand); margin: 1.6rem 0 0.6rem; }
+    ol, ul { margin: 0 0 1rem 1.2rem; }
+    li { margin-bottom: 0.3rem; }
+    strong { font-weight: 600; }
+    a { color: var(--brand); }
+    code { font-family: var(--mono); font-size: 0.82em; background: #F5F5F0; padding: 2px 6px; border-radius: 4px; }
+
+    .figure-container {
+      margin: 28px -24px;
+      padding: 24px 28px;
+      background: white;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .widget-label { font-family: var(--sans); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--brand); margin-bottom: 4px; }
+    .figure-caption { margin-top: 12px; font-family: var(--sans); font-size: 0.68rem; color: #aaa; text-align: center; line-height: 1.4; }
+
+    .math-block {
+      background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+      border-left: 4px solid var(--brand);
+      border-radius: 0 12px 12px 0;
+      padding: 20px 24px;
+      margin: 24px 0;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      line-height: 1.9;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      color: #1E293B;
+    }
+
+    .pipeline-box {
+      background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+      color: #E2E8F0;
+      border: none;
+      border-radius: 12px;
+      padding: 28px 32px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      line-height: 2;
+      margin: 24px 0;
+      overflow-x: auto;
+      white-space: pre;
+      text-align: left;
+    }
+
+    .sidenote {
+      background: linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 100%);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 10px 10px 0;
+      padding: 18px 22px;
+      margin: 24px 0;
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: #555;
+    }
+    .sidenote strong { display: block; margin-bottom: 6px; color: var(--accent); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .misconception {
+      background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
+      border-left: 3px solid #EF4444;
+      border-radius: 0 10px 10px 0;
+      padding: 18px 22px;
+      margin: 24px 0;
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: #555;
+    }
+    .misconception strong { display: block; margin-bottom: 6px; color: #DC2626; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      margin: 20px 0;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    table.data-table th, table.data-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      text-align: left;
+    }
+    table.data-table th { background: #F8FAFC; font-weight: 700; color: #475569; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    table.data-table tr:last-child td { border-bottom: none; }
+    table.data-table tr:hover td { background: #FAFAFA; }
+
+    .toggle-btn {
+      padding: 8px 16px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      font-family: var(--sans);
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 500;
+    }
+    .toggle-btn:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(37,99,235,0.12); }
+    .toggle-btn.active { background: linear-gradient(135deg, var(--brand), var(--brand-light)); color: white; border-color: transparent; box-shadow: 0 2px 8px rgba(37,99,235,0.25); }
+
+    .demo-controls {
+      display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0;
+      font-family: var(--sans); font-size: 0.78rem;
+    }
+    .demo-controls label { display: flex; align-items: center; gap: 6px; }
+
+    .prob-bar-track {
+      height: 20px;
+      background: #F3F4F6;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .prob-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+
+    /* ---- Q&A accordion ---- */
+    .qa-item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      background: white;
+      overflow: hidden;
+    }
+    .qa-item summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px 18px;
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.15s;
+    }
+    .qa-item summary::-webkit-details-marker { display: none; }
+    .qa-item summary:hover { background: #F8FAFC; }
+    .qa-item summary::before {
+      content: "+";
+      font-family: var(--sans);
+      font-weight: 700;
+      color: var(--brand);
+      font-size: 1rem;
+      min-width: 16px;
+      transition: transform 0.2s;
+    }
+    .qa-item[open] summary::before { content: "\2212"; }
+    .qa-item .qa-answer {
+      padding: 0 18px 18px 44px;
+      font-family: var(--sans);
+      font-size: 0.8rem;
+      line-height: 1.6;
+      color: #555;
+    }
+    .qa-answer code { font-size: 0.85em; }
+
+    .footer {
+      max-width: var(--content-width);
+      margin: 72px auto 0;
+      padding: 28px var(--content-padding) 64px;
+      border-top: 1px solid var(--border);
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      color: #aaa;
+      text-align: center;
+    }
+    .footer a { color: var(--brand); text-decoration: none; font-weight: 500; }
+    .footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 700px) {
+      html { font-size: 18px; }
+      .post-title { font-size: 1.8rem; }
+      .header__text { padding: 24px; }
+      article { padding: 0 18px; }
+      .section-heading { margin-left: -18px; margin-right: -18px; padding: 12px 8px; }
+      .figure-container { margin: 16px -10px; }
+      .qa-item .qa-answer { padding-left: 18px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="../index.html">Interactive Explainers<br><span class="logo-secondary">Learning by playing</span></a>
+</nav>
+
+<header class="post-header">
+  <div class="header__bg"></div>
+  <div class="header__overlay"></div>
+  <div class="header__text">
+    <div class="header__eyebrow">Model Interoperability &middot; KV Cache Transfer</div>
+    <h1 class="post-title">Borrowing Another Model's Memory</h1>
+    <h2 class="post-subtitle">How ridge regression lets a cheap model's KV cache stand in for an expensive one's &mdash; and why the whole trick starts at <em>y = mx + c</em>.</h2>
+  </div>
+</header>
+
+<div class="nutshell">
+  Every time you hand a prompt to a new model, it has to re-read the entire prompt before it can say a single word back &mdash; that re-reading is called <strong>prefill</strong>, and for long contexts it's expensive. This piece works through an idea for dodging that cost: run the cheap model's prefill, then <em>predict</em> what the expensive model's KV cache would have looked like, using nothing more exotic than linear regression. We build it up literally from <code>y = mx + c</code>, so bring that and nothing else.
+</div>
+
+<hr class="full-width">
+
+<article>
+
+  <!-- TABLE OF CONTENTS -->
+  <div class="toc-wrapper">
+    <h4>Contents</h4>
+    <div class="toc">
+      <ol>
+        <li><a href="#sec-problem">Two Models, Two Prefills</a></li>
+        <li><a href="#sec-refresher">What Actually Lives in a KV Cache</a></li>
+        <li><a href="#sec-mxc">From y = mx + c to Y = XW + b</a></li>
+        <li><a href="#sec-xy">What Exactly Are X and Y?</a></li>
+        <li><a href="#sec-ridge">Why Ridge, Not Ordinary Least Squares</a></li>
+        <li><a href="#sec-playground">Interactive &mdash; Fit a Ridge Line Yourself</a></li>
+        <li><a href="#sec-pipeline">The Full Pipeline: Calibrate Once, Reuse Forever</a></li>
+        <li><a href="#sec-breaks">Where This Breaks</a></li>
+        <li><a href="#sec-qa">Q&amp;A</a></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- I. THE PROBLEM -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-problem">
+    <span class="section-number">I.</span>
+    <h2>Two Models, Two Prefills</h2>
+  </div>
+
+  <p>Picture a system with two language models: a small, cheap one (call it <strong>Model A</strong>) and a large, expensive one (call it <strong>Model B</strong>). Maybe A drafts and B verifies. Maybe A runs on-device and B lives in the cloud. Maybe A is last month's model and B is the upgrade you just shipped, still serving a long-running conversation. In every one of these setups, the same annoying fact shows up:</p>
+
+  <div class="pipeline-box">Long prompt / conversation history (thousands of tokens)
+        |
+        v
+   Model B must PREFILL &mdash; process every token, build its own K/V cache
+        |
+        v
+   Only now can Model B decode the first new token
+
+  Cost:   O(context length) forward-pass compute, before a single output token exists
+  Who pays it:  the user, staring at a blank screen (this is exactly the TTFT
+                from "Performance Metrics, In Depth")</div>
+
+  <p>If Model A has <em>already</em> read that same context &mdash; because it drafted, or because it served the conversation up to this point &mdash; its work is thrown away the moment Model B takes over. Model B doesn't get to reuse Model A's cache, because the two models don't share a KV space: different weights produce different keys and values, even for identical input tokens. So B redoes, from scratch, work that was just done a moment ago by A.</p>
+
+  <div class="sidenote">
+    <strong>Not the same trick as speculative decoding</strong>
+    <a href="../speculative-decoding/index.html">Speculative decoding</a> also uses a cheap model alongside an expensive one, but it still runs the expensive model's real forward pass to verify every draft token &mdash; that's what keeps its outputs mathematically identical to always using the big model. What we're building here is a different move: <em>skip</em> Model B's real prefill forward pass entirely and <em>estimate</em> the KV cache it would have produced. That's a strictly stronger &mdash; and strictly riskier &mdash; bet.
+  </div>
+
+  <p>The question this piece answers: is there a cheap way to turn Model A's KV cache into a usable stand-in for Model B's, without ever running Model B's prefill? The answer the rest of this piece builds toward is <strong>yes, approximately, via regression</strong> &mdash; and the surprising part is that the regression involved is one you already know.</p>
+
+  <!-- ============================================ -->
+  <!-- II. REFRESHER -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-refresher">
+    <span class="section-number">II.</span>
+    <h2>What Actually Lives in a KV Cache</h2>
+  </div>
+
+  <p>Quick refresher before the regression, because "KV cache" needs to stop being an abstract phrase for the rest of this to land.</p>
+
+  <p>Inside every transformer layer, each token produces three vectors: a <strong>query</strong> (Q), a <strong>key</strong> (K), and a <strong>value</strong> (V). Attention uses Q to ask "which earlier tokens matter to me," uses K from every earlier token to answer "here's how relevant I am," and pulls information from V weighted by that relevance. During autoregressive generation, K and V for every past token are needed at every future step &mdash; but they never change once computed, so instead of recomputing them, the model <em>caches</em> them.</p>
+
+  <div class="pipeline-box">Prefill (reading the prompt, token by token, all at once):
+
+  token_1 -> layer computes Q_1,K_1,V_1  -> store K_1, V_1
+  token_2 -> layer computes Q_2,K_2,V_2  -> store K_2, V_2
+  ...
+  token_N -> layer computes Q_N,K_N,V_N  -> store K_N, V_N
+
+  Result: KV cache = { K_1..K_N, V_1..V_N }  for THIS layer, THIS head
+
+  This repeats independently for every layer and every attention head.
+  A 32-layer, 32-head model keeps 32 x 32 = 1024 separate little K/V
+  cache streams, one per (layer, head) pair.</div>
+
+  <p>That last line matters more than it looks. A KV cache isn't one big blob &mdash; it's hundreds of small vector streams, one per layer-and-head combination, and each one lives in its own learned subspace. Layer 3's keys and layer 20's keys aren't comparable, even within the <em>same</em> model. Keep that in your back pocket; it comes back in Section VIII.</p>
+
+  <!-- ============================================ -->
+  <!-- III. FROM y=mx+c -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-mxc">
+    <span class="section-number">III.</span>
+    <h2>From y = mx + c to Y = XW + b</h2>
+  </div>
+
+  <p>Here's the entire conceptual leap, in three steps.</p>
+
+  <h3>3.1 &mdash; One input, one output</h3>
+  <p>Simple linear regression fits a line through points:</p>
+  <div class="math-block">y = m&middot;x + c
+
+  x = one input number
+  y = one output number
+  m = slope
+  c = intercept</div>
+
+  <h3>3.2 &mdash; Many inputs, one output</h3>
+  <p>If instead of one input feature you have several &mdash; <em>x</em>&#8321;, <em>x</em>&#8322;, ... <em>x</em>&#8345; &mdash; each gets its own weight, and you sum them:</p>
+  <div class="math-block">y = w1&middot;x1 + w2&middot;x2 + ... + wn&middot;xn + c</div>
+  <p>This is still "one output," just with more knobs. Stack the weights into a vector <em>W</em> and this is exactly <em>y = X&middot;W + c</em> for one row of X.</p>
+
+  <h3>3.3 &mdash; Many inputs, many outputs, many rows</h3>
+  <p>Now stretch it two more ways at once. First: instead of predicting one output number, predict a whole output <em>vector</em> &mdash; every input feature gets to influence every output feature, through its own weight. Second: instead of one example, stack many rows &mdash; one per token. That gives you matrices instead of vectors, and the whole thing collapses to one line:</p>
+  <div class="math-block">Y = X W + b
+
+  X = matrix of input vectors   (one row per token)
+  Y = matrix of output vectors  (one row per token)
+  W = matrix of weights          (learned)
+  b = bias vector                (learned, one per output dimension)</div>
+
+  <div class="math-block">Simple linear regression        Multiple linear regression       Matrix / multivariate form
+        v                                v                                 v
+   y = m x + c        --->     y = w1 x1 + ... + wn xn + c    --->      Y = X W + b
+
+   one x, one y             many x's, one y                       many x's, many y's, many rows</div>
+
+  <p>Nothing new was invented between the first arrow and the second. <em>m</em> became a vector of weights, then that vector became a matrix, and a whole batch of rows got stacked so many examples could be fit at once. That's genuinely the whole jump.</p>
+
+  <div class="sidenote">
+    <strong>Where the bias goes</strong>
+    Just like <em>c</em> in <em>y = mx + c</em> can be absorbed by adding a constant "1" input column, <em>b</em> can be folded into <em>W</em> by appending a column of ones to <em>X</em>. Some formulations write it that way to keep a single matrix multiply; this piece keeps <em>b</em> separate for clarity.
+  </div>
+
+  <!-- ============================================ -->
+  <!-- IV. X AND Y -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-xy">
+    <span class="section-number">IV.</span>
+    <h2>What Exactly Are X and Y?</h2>
+  </div>
+
+  <p>This is the part that's easy to get vague about, so let's be concrete. <em>X</em> and <em>Y</em> are <strong>not</strong> prompt text, and they're <strong>not</strong> token IDs. They're the numeric K (or V) vectors that come out of a forward pass &mdash; for one specific layer and one specific head, at first.</p>
+
+  <h4>Step 1 &mdash; run the same calibration text through both models</h4>
+  <div class="pipeline-box">Same calibration text (any representative corpus)
+        |
+        +----------------> Model A (cheap)  -> K_A[1..N], V_A[1..N]
+        |
+        +----------------> Model B (expensive) -> K_B[1..N], V_B[1..N]
+
+  Same tokens, same positions -> paired vectors at every position i:
+        K_A[i]  <-->  K_B[i]
+        V_A[i]  <-->  V_B[i]</div>
+
+  <h4>Step 2 &mdash; stack the pairs into two matrices</h4>
+  <div class="math-block">X = Model A's K vectors, one row per token
+Y = Model B's K vectors, one row per token   (same rows, same token order)
+
+Concretely, for 3 tokens and a 4-dim key (real head dims are 64-256):
+
+X =  [ 0.2  0.5  0.1  0.8 ]      Y =  [ 0.3  0.6  0.2  0.7 ]
+     [ 0.4  0.3  0.7  0.2 ]           [ 0.5  0.4  0.8  0.3 ]
+     [ 0.9  0.1  0.4  0.6 ]           [ 0.8  0.2  0.5  0.5 ]
+
+Goal: find W (and bias b) such that   X W + b  &asymp;  Y</div>
+
+  <p>Do this again with the V vectors instead of the K vectors, and you have a second, independent regression problem: <em>V</em><sub>A</sub><em>W</em><sub>V</sub> + <em>b</em><sub>V</sub> &asymp; <em>V</em><sub>B</sub>. K and V live in different spaces and get their own learned mapping.</p>
+
+  <table class="data-table">
+    <tr><th>Symbol</th><th>What it actually is</th><th>Shape</th></tr>
+    <tr><td><code>X</code></td><td>Model A's K (or V) vectors, calibration tokens</td><td>N &times; d</td></tr>
+    <tr><td><code>Y</code></td><td>Model B's K (or V) vectors, <em>same</em> calibration tokens</td><td>N &times; d'</td></tr>
+    <tr><td><code>W</code></td><td>learned linear map from A's space to B's space</td><td>d &times; d'</td></tr>
+    <tr><td><code>b</code></td><td>learned bias / offset</td><td>1 &times; d'</td></tr>
+    <tr><td>N</td><td>number of calibration tokens (rows)</td><td>thousands, typically</td></tr>
+    <tr><td>d, d'</td><td>per-head key/value dimension of A and B</td><td>often 64&ndash;256</td></tr>
+  </table>
+
+  <div class="misconception">
+    <strong>Common misconception</strong>
+    It's tempting to picture one giant <em>W</em> for "the whole model." In practice you fit one small <em>W</em> <em>per layer, per head, per {K, V}</em> &mdash; because, as Section II noted, each layer-head's K/V space is its own learned subspace. A 32-layer &times; 32-head model with separate K and V maps means on the order of 2,000 small regression problems, each one cheap because each <em>d</em> is only in the hundreds.
+  </div>
+
+  <!-- ============================================ -->
+  <!-- V. RIDGE -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-ridge">
+    <span class="section-number">V.</span>
+    <h2>Why Ridge, Not Ordinary Least Squares</h2>
+  </div>
+
+  <p>Ordinary least squares (OLS) finds <em>W</em> by solving:</p>
+  <div class="math-block">W = (X^T X)^-1 X^T Y</div>
+  <p>That inverse is where the trouble starts. Two things go wrong with real KV data:</p>
+
+  <ol>
+    <li><strong>Ill-conditioning.</strong> Nearby tokens in a sequence produce highly correlated K/V vectors (attention patterns are smooth, not random). That correlation makes <em>X</em><sup>T</sup><em>X</em> close to singular &mdash; nearly non-invertible &mdash; which makes OLS's solution numerically unstable: tiny noise in the calibration data produces wildly different, huge weights.</li>
+    <li><strong>Overfitting the calibration set.</strong> A <em>W</em> that fits the calibration text perfectly, including its noise, generalizes badly to the actual prompts you'll see at inference time &mdash; which is the only thing that matters.</li>
+  </ol>
+
+  <p><strong>Ridge regression</strong> fixes both by adding a penalty on the size of the weights, and it's still solvable in closed form:</p>
+  <div class="math-block">Ridge objective:   minimize   ||XW - Y||^2  +  &lambda; ||W||^2
+
+Closed-form solution:
+
+  W = (X^T X + &lambda; I)^-1 X^T Y
+
+  &lambda; = 0   ->  identical to OLS
+  &lambda; &uarr;   ->  X^T X + &lambda;I moves away from singular, always invertible
+  &lambda; &uarr;   ->  W shrinks toward 0 (smaller, more stable weights)</div>
+
+  <p>The <em>&lambda;I</em> term is doing two jobs at once: numerically, it guarantees the matrix being inverted is invertible no matter how correlated the calibration data is; statistically, it trades a little bias for a lot less variance, which is exactly the trade you want when you're about to apply <em>W</em> to prompts the calibration set never saw.</p>
+
+  <div class="sidenote">
+    <strong>Why not Lasso (L1) instead?</strong>
+    Lasso's penalty pushes individual weights all the way to zero, producing a <em>sparse</em> W &mdash; useful when you believe most input features are irrelevant. Here, every one of the 64&ndash;256 dimensions of a key vector plausibly carries information; there's no reason to believe most of them are useless. Ridge's smooth shrinkage fits the problem better, and its closed-form solution is far cheaper than Lasso's iterative solvers &mdash; important since you're solving thousands of these regressions (one per layer/head/{K,V}).
+  </div>
+
+  <!-- ============================================ -->
+  <!-- VI. PLAYGROUND -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-playground">
+    <span class="section-number">VI.</span>
+    <h2>Interactive &mdash; Fit a Ridge Line Yourself</h2>
+  </div>
+
+  <p>The real regression lives in 64+ dimensions across thousands of tokens, which nobody can eyeball. But the shrinkage behavior of &lambda; is identical in 1D, so play with it here: drag the points (imagine each one is "Model A's key value" on the x-axis versus "Model B's key value" on the y-axis, for one dimension, one token), then slide &lambda; and watch the fitted line respond.</p>
+
+  <div class="figure-container" id="ridge-demo">
+    <div class="widget-label">Interactive &mdash; Ridge Regression Playground</div>
+    <svg id="ridge-svg" viewBox="0 0 680 340" style="width:100%; height:auto; cursor:grab; touch-action:none; display:block;" aria-label="Interactive: drag points to see a ridge-regression line refit, and adjust lambda to see shrinkage"></svg>
+    <div class="demo-controls">
+      <label>&lambda; (ridge penalty): <input type="range" id="ridge-lambda" min="0" max="40" value="0" step="0.5" style="vertical-align:middle;"> <span id="ridge-lambda-val">0.0</span></label>
+    </div>
+    <div id="ridge-output" style="margin-top:10px; font-family:var(--mono); font-size:0.75rem; color:#1E293B;"></div>
+    <div class="figure-caption">x = Model A's value for this dimension &middot; y = Model B's value for this dimension &middot; each dot = one calibration token. Drag dots to reshape the data; drag &lambda; to watch the line resist noise and shrink toward flat as the penalty grows.</div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- VII. PIPELINE -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-pipeline">
+    <span class="section-number">VII.</span>
+    <h2>The Full Pipeline: Calibrate Once, Reuse Forever</h2>
+  </div>
+
+  <p>One subtlety that's easy to miss: the regression happens <strong>once, offline</strong>, on calibration data. It is never re-solved per user request. At inference time, all that's left is a matrix multiply.</p>
+
+  <div class="demo-controls" style="margin-bottom: 4px;">
+    <button class="toggle-btn active" id="btn-standard" onclick="showPipeline('standard')">Standard handoff</button>
+    <button class="toggle-btn" id="btn-transfer" onclick="showPipeline('transfer')">With KV transfer</button>
+  </div>
+
+  <div class="figure-container" style="margin-top:0;">
+    <div id="pipeline-standard" class="pipeline-box" style="margin:0;">New prompt arrives
+     |
+     v
+Model B PREFILL   <-- expensive, full forward pass over every token
+     |
+     v
+  K_B, V_B  (Model B's real KV cache)
+     |
+     v
+Model B DECODE  -->  first output token
+
+Model A's earlier work on this same context: discarded.</div>
+    <div id="pipeline-transfer" class="pipeline-box" style="margin:0; display:none;">New prompt arrives
+     |
+     v
+Model A PREFILL   <-- cheap, Model A does the reading
+     |
+     v
+  K_A, V_A  (Model A's real KV cache)
+     |
+     v
+Apply pre-learned W_K, b_K  and  W_V, b_V   (one matmul per layer/head)
+     |
+     v
+  K_B, V_B  (APPROXIMATE Model B KV cache -- no Model B prefill ran)
+     |
+     v
+Model B DECODE  -->  first output token
+
+W_K, W_V were fit ONCE, offline, on calibration data -- never recomputed
+per request.</div>
+  </div>
+
+  <p>The saving is structural: Model B's prefill &mdash; the part whose cost scales with context length &mdash; is replaced by a fixed-cost linear projection whose cost depends only on the KV dimensions, not on how long the prompt was. The longer the context, the bigger the win.</p>
+
+  <table class="data-table">
+    <tr><th>&nbsp;</th><th>Standard handoff</th><th>With KV transfer</th></tr>
+    <tr><td>Who reads the prompt</td><td>Model B, in full</td><td>Model A only</td></tr>
+    <tr><td>Model B's prefill</td><td>Runs, cost &prop; context length</td><td>Skipped entirely</td></tr>
+    <tr><td>Per-request extra work</td><td>&mdash;</td><td>One matmul per layer/head, cost &prop; KV dimension only</td></tr>
+    <tr><td>Cache Model B decodes from</td><td>Exact</td><td>Approximate (regression fit, not exact)</td></tr>
+    <tr><td>Where the cost went</td><td>Online, per request</td><td>Mostly offline, during calibration</td></tr>
+  </table>
+
+  <!-- ============================================ -->
+  <!-- VIII. WHERE THIS BREAKS -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-breaks">
+    <span class="section-number">VIII.</span>
+    <h2>Where This Breaks</h2>
+  </div>
+
+  <p>None of this is free lunch. Four places where the approximation is worth being suspicious of:</p>
+
+  <h3>8.1 &mdash; It's approximate, not exact</h3>
+  <p><em>XW + b</em> is a best linear fit, not a guarantee. Model B's real attention computation is a nonlinear function of the full context; a linear map from A's space can only capture the part of that relationship that <em>is</em> linear. Whatever's left over is baked-in error the moment calibration finishes &mdash; it doesn't get better at inference time.</p>
+
+  <h3>8.2 &mdash; Errors can compound across layers</h3>
+  <p>Layer <em>l+1</em>'s attention consumes layer <em>l</em>'s approximate K/V as part of its own computation. An error introduced early has the chance to propagate and distort every layer after it, rather than staying contained to the layer where it was introduced.</p>
+
+  <h3>8.3 &mdash; Model A and B need to be related</h3>
+  <p>The calibration pairs only carry a learnable linear relationship if A and B represent similar-enough information in their KV spaces &mdash; same tokenizer, same rough architecture family, ideally distilled from or trained alongside each other. Bolting this onto two unrelated models with different vocabularies is not what the regression was built for; there may be no good linear map to find.</p>
+
+  <h3>8.4 &mdash; Calibration data has to represent your real traffic</h3>
+  <p><em>W</em> is only as good as the calibration text it was fit on. A regression calibrated on news articles and then applied to code, or to a language it never saw, is extrapolating &mdash; and linear models extrapolate badly outside the range of their training data.</p>
+
+  <div class="sidenote">
+    <strong>So when is this actually worth it?</strong>
+    Whenever the approximation error is tolerable and the context is long enough that skipping prefill matters: tiered serving (a cheap model handles ingestion, an expensive one only decodes), model-version migrations mid-conversation, or edge-to-cloud handoff. It's a poor fit anywhere exactness is non-negotiable, or contexts are already short enough that prefill wasn't the bottleneck.
+  </div>
+
+  <!-- ============================================ -->
+  <!-- IX. Q&A -->
+  <!-- ============================================ -->
+  <div class="section-heading" id="sec-qa">
+    <span class="section-number">IX.</span>
+    <h2>Q&amp;A</h2>
+  </div>
+
+  <details class="qa-item">
+    <summary>Isn't this just speculative decoding with extra steps?</summary>
+    <div class="qa-answer">No &mdash; they solve different problems and make different guarantees. Speculative decoding always runs the expensive model's <em>real</em> forward pass to verify draft tokens, which is exactly what keeps its output distribution mathematically identical to running the big model alone. KV transfer never runs Model B's prefill at all; it substitutes a regression-based estimate. That makes it cheaper but no longer exact &mdash; a genuinely different trade-off, not a variant of the same one.</div>
+  </details>
+
+  <details class="qa-item">
+    <summary>So X and Y are the prompt tokens?</summary>
+    <div class="qa-answer">No. X and Y are the numeric K (or V) vectors that come <em>out</em> of a forward pass for a given layer and head &mdash; floating-point arrays, not text and not token IDs. The same calibration tokens are what link a row of X to the corresponding row of Y (row i of X and row i of Y come from the same token at the same position), but the regression itself never sees the tokens, only the vectors they produced.</div>
+  </details>
+
+  <details class="qa-item">
+    <summary>Do we learn one W for the whole model?</summary>
+    <div class="qa-answer">No, and this is the most common oversimplification. Each layer, each attention head, and each of K/V has its own subspace with its own learned geometry, so each gets its own small W (and bias). A 32-layer, 32-head model needs on the order of 2,000 independent regressions &mdash; each cheap, because each one's dimension is only in the hundreds, not thousands.</div>
+  </details>
+
+  <details class="qa-item">
+    <summary>Does this require retraining either model?</summary>
+    <div class="qa-answer">No. Both Model A and Model B keep their original weights untouched. Calibration is a one-time, closed-form regression fit over paired forward-pass outputs &mdash; no gradient descent, no backprop into either model's parameters. That's a large part of why it's cheap to set up.</div>
+  </details>
+
+  <details class="qa-item">
+    <summary>Why ridge specifically, and not plain least squares?</summary>
+    <div class="qa-answer">Ordinary least squares needs to invert X<sup>T</sup>X, and KV vectors from nearby tokens are highly correlated, which makes that matrix nearly singular &mdash; small noise in the calibration data then produces huge, unstable weights. Ridge adds &lambda;I before inverting, which guarantees invertibility and shrinks the weights toward zero, trading a little bias for much better stability and generalization to prompts the calibration set never saw. See Section V and the playground in Section VI.</div>
+  </details>
+
+  <details class="qa-item">
+    <summary>What does the bias term b actually represent?</summary>
+    <div class="qa-answer">The same thing c represents in y = mx + c: a constant offset that doesn't depend on the input at all &mdash; the average shift between Model A's and Model B's KV vectors after the best linear relationship has been accounted for. It can be folded into W by appending a constant "1" column to X, which is why some write the whole thing as a single matrix multiply with no separate bias term.</div>
+  </details>
+
+  <details class="qa-item">
+    <summary>Does approximation error get worse the longer the model decodes?</summary>
+    <div class="qa-answer">The prefill KV cache is estimated once, up front, so its error doesn't keep growing with decode length by itself. But every future decode step attends back to that approximate cache, so any error introduced at prefill keeps being consumed, token after token, for the entire remainder of generation &mdash; the error is present throughout, even if it doesn't accumulate further on its own.</div>
+  </details>
+
+  <details class="qa-item">
+    <summary>Could this work between two completely unrelated models?</summary>
+    <div class="qa-answer">In principle a ridge regression can be fit between any two matrices with a matching number of rows, so nothing stops you from trying. In practice, the fit will only be useful if there's a real, roughly linear relationship between the two models' KV spaces to find &mdash; which is far more plausible for models sharing a tokenizer and architecture family (or distilled from a common teacher) than for two unrelated models with different vocabularies. Section 8.3 covers this.</div>
+  </details>
+
+  <details class="qa-item">
+    <summary>Is this a real production technique or a thought experiment?</summary>
+    <div class="qa-answer">The math here &mdash; ridge regression, closed-form solution, offline calibration &mdash; is standard and genuinely usable. Whether it's worth deploying depends entirely on your tolerance for approximation error versus how much prefill cost you're trying to avoid: it's a strong fit for tiered serving or mid-conversation model upgrades, and a poor fit anywhere exact outputs are required or contexts are already short.</div>
+  </details>
+
+  <details class="qa-item">
+    <summary>What happens to attention's softmax nonlinearity in all this?</summary>
+    <div class="qa-answer">Nothing about the softmax changes. The regression only touches the K and V vectors that get cached from prefill &mdash; it never touches attention's Q&middot;K<sup>T</sup> score computation or the softmax over those scores, both of which still run exactly as designed once decoding starts. The approximation is entirely upstream, in how the cached K/V got produced.</div>
+  </details>
+
+</article>
+
+<div class="footer">
+  <p>A learning project by <a href="https://github.com/IrriDileepKumar">IrriDileepKumar</a></p>
+</div>
+
+<script>
+// ===== RIDGE REGRESSION PLAYGROUND =====
+(function () {
+  const svg = document.getElementById('ridge-svg');
+  const lambdaSlider = document.getElementById('ridge-lambda');
+  const lambdaVal = document.getElementById('ridge-lambda-val');
+  const output = document.getElementById('ridge-output');
+
+  const W = 680, H = 340, PAD = 44;
+  const DATA_MIN = 0, DATA_MAX = 10;
+  const plotW = W - 2 * PAD, plotH = H - 2 * PAD;
+
+  function toScreenX(x) { return PAD + (x - DATA_MIN) / (DATA_MAX - DATA_MIN) * plotW; }
+  function toScreenY(y) { return H - PAD - (y - DATA_MIN) / (DATA_MAX - DATA_MIN) * plotH; }
+  function toDataX(sx) { return DATA_MIN + (sx - PAD) / plotW * (DATA_MAX - DATA_MIN); }
+  function toDataY(sy) { return DATA_MIN + (H - PAD - sy) / plotH * (DATA_MAX - DATA_MIN); }
+
+  let points = [
+    { x: 1.2, y: 2.0 },
+    { x: 2.5, y: 3.6 },
+    { x: 3.8, y: 4.1 },
+    { x: 5.0, y: 6.4 },
+    { x: 6.3, y: 6.0 },
+    { x: 7.5, y: 8.3 },
+    { x: 8.8, y: 8.0 }
+  ];
+
+  function fitRidge(lambda) {
+    const n = points.length;
+    const xMean = points.reduce((s, p) => s + p.x, 0) / n;
+    const yMean = points.reduce((s, p) => s + p.y, 0) / n;
+    let sxy = 0, sxx = 0;
+    points.forEach(p => {
+      sxy += (p.x - xMean) * (p.y - yMean);
+      sxx += (p.x - xMean) * (p.x - xMean);
+    });
+    const w = sxy / (sxx + lambda);
+    const b = yMean - w * xMean;
+    let rss = 0;
+    points.forEach(p => {
+      const pred = w * p.x + b;
+      rss += (p.y - pred) * (p.y - pred);
+    });
+    const penalty = lambda * w * w;
+    return { w, b, rss, penalty, loss: rss + penalty };
+  }
+
+  function render() {
+    const lambda = +lambdaSlider.value;
+    lambdaVal.textContent = lambda.toFixed(1);
+    const fit = fitRidge(lambda);
+
+    let svgHtml = '';
+
+    // axes
+    svgHtml += `<line x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}" stroke="#CBD5E1" stroke-width="1.5"/>`;
+    svgHtml += `<line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H - PAD}" stroke="#CBD5E1" stroke-width="1.5"/>`;
+    svgHtml += `<text x="${W / 2}" y="${H - 8}" text-anchor="middle" font-family="Figtree, sans-serif" font-size="11" fill="#94A3B8">Model A's value (this dimension)</text>`;
+    svgHtml += `<text x="14" y="${H / 2}" text-anchor="middle" font-family="Figtree, sans-serif" font-size="11" fill="#94A3B8" transform="rotate(-90 14 ${H / 2})">Model B's value</text>`;
+
+    // fitted line, clipped to data range
+    const x0 = DATA_MIN, x1 = DATA_MAX;
+    const y0 = fit.w * x0 + fit.b, y1 = fit.w * x1 + fit.b;
+    svgHtml += `<line x1="${toScreenX(x0)}" y1="${toScreenY(y0)}" x2="${toScreenX(x1)}" y2="${toScreenY(y1)}" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round"/>`;
+
+    // residual guides
+    points.forEach(p => {
+      const predY = fit.w * p.x + fit.b;
+      svgHtml += `<line x1="${toScreenX(p.x)}" y1="${toScreenY(p.y)}" x2="${toScreenX(p.x)}" y2="${toScreenY(predY)}" stroke="#FCA5A5" stroke-width="1.5" stroke-dasharray="3,3"/>`;
+    });
+
+    // points
+    points.forEach((p, i) => {
+      svgHtml += `<circle data-idx="${i}" cx="${toScreenX(p.x)}" cy="${toScreenY(p.y)}" r="8" fill="#0D9488" stroke="white" stroke-width="2" style="cursor:grab;"/>`;
+    });
+
+    svg.innerHTML = svgHtml;
+
+    output.innerHTML = `W (slope) = <strong style="color:#2563EB;">${fit.w.toFixed(3)}</strong> &nbsp;&middot;&nbsp; b (intercept) = <strong style="color:#2563EB;">${fit.b.toFixed(3)}</strong> &nbsp;&middot;&nbsp; fit error (RSS) = ${fit.rss.toFixed(2)} &nbsp;&middot;&nbsp; penalty (&lambda;W&sup2;) = ${fit.penalty.toFixed(2)}`;
+  }
+
+  let dragIdx = null;
+  function svgPoint(evt) {
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox.baseVal;
+    return {
+      x: (evt.clientX - rect.left) * (vb.width / rect.width),
+      y: (evt.clientY - rect.top) * (vb.height / rect.height)
+    };
+  }
+  svg.addEventListener('pointerdown', (e) => {
+    const t = e.target.closest('circle[data-idx]');
+    if (!t) return;
+    dragIdx = parseInt(t.getAttribute('data-idx'));
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (dragIdx === null) return;
+    const p = svgPoint(e);
+    points[dragIdx].x = Math.max(DATA_MIN, Math.min(DATA_MAX, toDataX(p.x)));
+    points[dragIdx].y = Math.max(DATA_MIN, Math.min(DATA_MAX, toDataY(p.y)));
+    render();
+  });
+  svg.addEventListener('pointerup', () => { dragIdx = null; });
+  svg.addEventListener('pointercancel', () => { dragIdx = null; });
+
+  lambdaSlider.addEventListener('input', render);
+  render();
+})();
+
+// ===== PIPELINE TOGGLE =====
+function showPipeline(which) {
+  document.getElementById('pipeline-standard').style.display = which === 'standard' ? 'block' : 'none';
+  document.getElementById('pipeline-transfer').style.display = which === 'transfer' ? 'block' : 'none';
+  document.getElementById('btn-standard').classList.toggle('active', which === 'standard');
+  document.getElementById('btn-transfer').classList.toggle('active', which === 'transfer');
+}
+</script>
+
+</body>
+</html>
